@@ -1,0 +1,17 @@
+name: Feature request
+description: An idea for Triggr, or something from Activator you miss.
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: A new trigger, action or setting, and how you'd use it.
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Your device and iOS version (optional)
+      description: Helps tell whether it's possible on your hardware.

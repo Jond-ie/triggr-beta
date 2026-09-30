@@ -1,0 +1,38 @@
+name: Bug report
+description: Something doesn't work as expected (no crash).
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      placeholder: e.g. iPhone 8 Plus, iPhone 12
+    validations:
+      required: true
+  - type: input
+    id: ios
+    attributes:
+      label: iOS version and jailbreak
+      placeholder: e.g. iOS 16.7.2, Dopamine 2.x
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Triggr version
+      placeholder: e.g. 1.0.0~beta2
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the mode (Anywhere / Home Screen / In App / Lock Screen), the trigger and the actions.
+    validations:
+      required: true
+  - type: textarea
+    id: other
+    attributes:
+      label: Other tweaks that might be involved
+      description: Anything else that hooks buttons, gestures or the status bar.
