@@ -23,8 +23,7 @@ To remove it, uninstall **Triggr** in your package manager.
 | Device | Status |
 |---|---|
 | **A11 and older (arm64) with Touch ID**, iOS 15–16 | Tested on iPhone 8 Plus, iOS 16.7 |
-| **A12 and newer (arm64e)** | **Untested.** The package includes an arm64e build, but it may not load. Please report either way. |
-| **Face ID devices** | **Untested.** Home Button and Touch ID triggers are hidden and switched off. The lock button is labelled **Side Button**; its triggers run alongside the system, so a double-click still opens Wallet and a triple-click still runs the Accessibility Shortcut. |
+| **A12 and newer** (iPhone XS / XR and later, all Face ID devices) | **Not supported yet.** The first beta2 file put these devices into safe mode (a wrong arm64e build). The current file is arm64-only and refuses to install on A12+. If you installed the earlier file on an A12+ device, uninstall it (safe mode still lets you open Sileo). |
 
 Triggr never delays or blocks the lock/side button, so **Emergency SOS always works**.
 
