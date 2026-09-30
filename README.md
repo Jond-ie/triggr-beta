@@ -7,6 +7,18 @@ assign actions to buttons, gestures and events, laid out like Activator.
 > This page is for feedback: bugs, crashes and requests go in
 > [**Issues**](../../issues/new/choose). The source code isn't public.
 
+## Screenshots
+
+<p>
+  <img src="screenshots/1-main.png" alt="Main page" width="200">
+  <img src="screenshots/2-place.png" alt="A place: what's assigned, then every kind of trigger" width="200">
+  <img src="screenshots/3-events.png" alt="Custom events" width="200">
+  <img src="screenshots/4-picker.png" alt="Action picker: folded categories and search" width="200">
+  <img src="screenshots/5-switches.png" alt="Switches: toggle, turn on or turn off" width="200">
+  <img src="screenshots/6-all-assignments.png" alt="All Assignments, by trigger or by action" width="200">
+  <img src="screenshots/7-options.png" alt="Options" width="200">
+</p>
+
 ## Install
 
 1. In **Sileo** (or Zebra): Sources → **+** → add `https://jond-ie.github.io/repo/`
