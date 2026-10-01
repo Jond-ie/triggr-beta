@@ -39,7 +39,7 @@ not by building the source: the repo always has the current build.
 | Device | Status |
 |---|---|
 | **A11 and older (arm64) with Touch ID**, iOS 15–16 | Tested on iPhone 8 Plus, iOS 16.7 |
-| **A12 and newer** (iPhone XS / XR and later, all Face ID devices) | **Not supported yet (arm64e).** Triggr is built for arm64 only for now and refuses to install on A12+, so it can't put these devices into safe mode. An early beta2 file did (a wrong arm64e build); if you installed that one on an A12+ device, uninstall it (safe mode still lets you open Sileo). |
+| **A12 and newer** (iPhone XS / XR and later, all Face ID devices) | **Experimental build (arm64e):** [download it from Releases](../../releases/tag/v1.0.0-beta3-arm64e-experimental). It isn't on John's Repo and hasn't been tested on an A12+ device yet; if it lands you in safe mode, open Sileo and uninstall Triggr, then please [report it](../../issues/new/choose). The repo build is arm64 only and refuses to install on A12+. |
 
 By default Triggr never delays or blocks the lock/side button. An optional,
 experimental setting (**Options → Replace Lock Button Actions**) lets an assigned
