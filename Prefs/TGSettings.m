@@ -193,7 +193,7 @@ static PSSpecifier *TGSwitchRow(NSString *name, NSString *key, BOOL defaultValue
 @interface TGListController : PSListController
 - (NSString *)swipeTitleForSpecifier:(PSSpecifier *)spec; // nil: this row can't be swiped
 - (BOOL)swipedSpecifier:(PSSpecifier *)spec;              // do it; YES when the row goes away
-- (BOOL)lockReplaces;
+- (BOOL)replacesButtons;
 @end
 
 @implementation TGListController
@@ -206,12 +206,12 @@ static PSSpecifier *TGSwitchRow(NSString *name, NSString *key, BOOL defaultValue
     return NO;
 }
 
-- (BOOL)lockReplaces {
+- (BOOL)replacesButtons {
     PSSpecifier *setting = [PSSpecifier emptyGroupSpecifier];
     [setting setProperty:TGDomain forKey:@"defaults"];
     [setting setProperty:TGLockReplacesKey forKey:@"key"];
     id value = [self readPreferenceValue:setting];
-    return [value respondsToSelector:@selector(boolValue)] && [value boolValue];
+    return ![value respondsToSelector:@selector(boolValue)] || [value boolValue]; // on unless turned off
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -229,7 +229,9 @@ static PSSpecifier *TGSwitchRow(NSString *name, NSString *key, BOOL defaultValue
         NSArray *anywhere = TGReadAssignment(self, @"anywhere", [spec propertyForKey:@"tgTrigger"]);
         if (anywhere.count) return [@"Anywhere: " stringByAppendingString:TGListTitle(anywhere)];
     }
-    return @"";
+    // Nothing assigned: the button keeps doing its own thing; say what that is.
+    NSString *stock = TGDefaultActionTitle([spec propertyForKey:@"tgTrigger"]);
+    return stock ? [@"Default: " stringByAppendingString:stock] : @"";
 }
 
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -591,19 +593,17 @@ static NSString *TGCategoryOf(NSString *action) {
     if (_mode && ![_mode isEqualToString:@"anywhere"]) [notes addObject:[NSString stringWithFormat:@"This assignment only works %@.", TGModePhrase(_mode)]];
     NSArray *anywhere = (!_mode || [_mode isEqualToString:@"anywhere"]) ? nil : TGReadAssignment(self, @"anywhere", _trigger);
     if (anywhere.count) [notes addObject:[NSString stringWithFormat:@"Anywhere runs %@ for this trigger. Actions picked here replace it %@; leave this empty to keep Anywhere's.", TGListTitle(anywhere), TGModePhrase(_mode)]];
-    NSString *warning = TGTriggerWarning(_trigger);
-    // Lock button notes depend on Replace Lock Button Actions; describe the current behavior.
-    if ([_trigger hasPrefix:@"lock."] && [self lockReplaces]) warning = @{
-        @"lock.single": @"Runs instead of locking while the screen is on. Add Sleep to the list to lock as well.",
-        @"lock.longhold": @"Runs instead of the power-off slider.",
-        @"lock.double": @"Single presses wait a moment to see if another follows.",
-        @"lock.triple": @"Single and double presses wait a moment to see if another follows.",
-    }[_trigger] ?: warning;
+    NSString *warning = TGTriggerWarning(_trigger, [self replacesButtons]);
+    if (!_selection.count && TGDefaultActionTitle(_trigger)) warning = nil; // the empty-state note covers it
     if (warning) [notes addObject:TGButtonText(warning)];
 
     // What's picked, in run order, so it's visible without opening each category.
     PSSpecifier *picked = [PSSpecifier groupSpecifierWithName:_selection.count ? (_menuEditor ? @"In This Menu" : _selection.count > 1 ? @"Runs in This Order" : @"Selected") : nil];
     if (_selection.count) [notes insertObject:@"Swipe left on one to remove it." atIndex:0];
+    else if (!_menuEditor && TGDefaultActionTitle(_trigger))
+        [notes insertObject:[NSString stringWithFormat:[self replacesButtons]
+            ? @"Nothing picked, so it does its normal thing (%@). Pick an action below to run instead, or Do Nothing (System) to turn it off."
+            : @"Nothing picked, so it just does its normal thing (%@). Pick an action below to run alongside it.", TGDefaultActionTitle(_trigger)] atIndex:0];
     else [notes insertObject:_menuEditor ? @"Nothing in this menu yet. Open a category below and tap the actions it should offer."
         : @"Nothing picked yet. Open a category below and tap an action. Pick several to run them in order." atIndex:0];
     [picked setProperty:[notes componentsJoinedByString:@"\n\n"] forKey:@"footerText"];
@@ -1102,8 +1102,13 @@ static NSComparator const TGCatalogOrder = ^NSComparisonResult(PSSpecifier *a, P
             const TGGroup *triggers = &TGTriggerGroups[_group];
             PSSpecifier *group = [PSSpecifier groupSpecifierWithName:nil];
             NSString *footer = triggers->footer ? @(triggers->footer) : nil;
-            if (triggers->items == TGLockButton && [self lockReplaces])
-                footer = @"Replace Lock Button Actions is on (Options): an assigned Single Press or Hold runs instead of locking or the power-off slider. Unassigned presses work as usual.";
+            // Buttons follow Replace Button Actions; say which way it's set.
+            if (triggers->items == TGHomeButton || triggers->items == TGLockButton || triggers->items == TGVolume || triggers->items == TGTouchID || triggers->items == TGMuteSwitch) {
+                NSString *mode = [self replacesButtons]
+                    ? @"Replace Button Actions is on (Options): an assigned press runs instead of the button's own action. Unassigned presses work as usual."
+                    : @"Replace Button Actions is off (Options): assigned presses run alongside the button's own action.";
+                footer = footer ? [NSString stringWithFormat:@"%@ %@", mode, footer] : mode;
+            }
             // On Face ID devices Apple calls the lock button the side button.
             if (triggers->items == TGLockButton && !TGHasHomeButton() && UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPhone)
                 footer = [footer stringByAppendingString:@" On Face ID devices a double-click still opens Wallet / Apple Pay and a triple-click still runs the Accessibility Shortcut, because Triggr runs alongside them. (Untested on Face ID devices.)"];
@@ -1735,7 +1740,7 @@ static NSString *TGSetupSummary(NSDictionary *setup, BOOL *hasCommands, BOOL *ha
         [specs addObject:[self button:@"Import Setup…" command:@"import"]];
 
         PSSpecifier *reset = [PSSpecifier groupSpecifierWithName:nil];
-        [reset setProperty:TGButtonText(@"Clears every assignment, menu and setting, and turns off Allow API and Replace Lock Button Actions. Saved profiles are kept.") forKey:@"footerText"];
+        [reset setProperty:TGButtonText(@"Clears every assignment, menu and setting, and turns off Allow API (Replace Button Actions goes back on). Saved profiles are kept.") forKey:@"footerText"];
         [specs addObject:reset];
         [specs addObject:[self button:@"Reset to Defaults…" command:@"reset"]];
         _specifiers = specs;
@@ -1790,7 +1795,7 @@ static NSString *TGSetupSummary(NSDictionary *setup, BOOL *hasCommands, BOOL *ha
         [self confirm:@"Reset to Defaults?" message:@"Every assignment, menu and setting is cleared. Saved profiles are kept." button:@"Reset" destructive:YES then:^{
             [self applySetup:@{}];
             [self writeValue:@NO forKey:TGAllowAPIKey]; // only Reset (or their switches) change these two
-            [self writeValue:@NO forKey:TGLockReplacesKey];
+            [self writeValue:@YES forKey:TGLockReplacesKey];
             [self writeValue:@"" forKey:TGActiveProfileKey];
             [self reloadSpecifiers];
         }];
@@ -1916,14 +1921,14 @@ static NSString *TGSetupSummary(NSDictionary *setup, BOOL *hasCommands, BOOL *ha
         [specs addObject:lock];
         [specs addObject:TGSwitchRow(@"Commands Need Passcode", TGRequireUnlockKey, YES, self)];
 
-        PSSpecifier *lockButton = [PSSpecifier groupSpecifierWithName:TGButtonText(@"Lock Button (Experimental)")];
-        [lockButton setProperty:TGButtonText(@"On: an assigned Single Press or Hold runs instead of locking or the power-off slider, and presses wait a moment when Double or Triple Press is assigned. Off: everything runs alongside the button. Waking, Emergency SOS and force restart always work as usual.") forKey:@"footerText"];
-        [specs addObject:lockButton];
-        PSSpecifier *replace = [PSSpecifier preferenceSpecifierNamed:TGButtonText(@"Replace Lock Button Actions") target:self set:@selector(setLockReplaces:specifier:)
+        PSSpecifier *buttons = [PSSpecifier groupSpecifierWithName:@"Buttons"];
+        [buttons setProperty:TGButtonText(@"On: an assigned press runs instead of the button's own action (going Home, the volume step, locking, muting…). To keep that too, add the matching action, like Sleep for the lock button. Off: everything runs alongside the buttons and the mute switch. Waking, Emergency SOS and force restart always work as usual.") forKey:@"footerText"];
+        [specs addObject:buttons];
+        PSSpecifier *replace = [PSSpecifier preferenceSpecifierNamed:@"Replace Button Actions" target:self set:@selector(setPreferenceValue:specifier:)
             get:@selector(readPreferenceValue:) detail:nil cell:PSSwitchCell edit:nil];
         [replace setProperty:TGDomain forKey:@"defaults"];
         [replace setProperty:TGLockReplacesKey forKey:@"key"];
-        [replace setProperty:@NO forKey:@"default"];
+        [replace setProperty:@YES forKey:@"default"];
         [replace setProperty:@TGPrefsChangedNotification forKey:@"PostNotification"];
         [specs addObject:replace];
 
@@ -1934,20 +1939,6 @@ static NSString *TGSetupSummary(NSDictionary *setup, BOOL *hasCommands, BOOL *ha
         _specifiers = specs;
     }
     return _specifiers;
-}
-
-// Turning it on asks first: it changes what the lock button does.
-- (void)setLockReplaces:(NSNumber *)value specifier:(PSSpecifier *)spec {
-    if (!value.boolValue) {
-        [self setPreferenceValue:value specifier:spec];
-        return;
-    }
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:TGButtonText(@"Replace Lock Button Actions?")
-        message:TGButtonText(@"Experimental. A lock button press or hold with an action assigned will run that action instead of locking the phone or showing the power-off slider.\n\nKeep another way to lock, like Lock Device on a different trigger. Emergency SOS is left to iOS, but if you rely on it, check it still starts after turning this on (you can cancel the countdown).")
-        preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:^(UIAlertAction *a) { [self reloadSpecifier:spec]; }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Turn On" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) { [self setPreferenceValue:@YES specifier:spec]; }]];
-    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (PSSpecifier *)blockListStorage {

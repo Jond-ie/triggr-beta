@@ -14,7 +14,7 @@
 #define TGProfilesKey @"Profiles"           // {name: setup}
 #define TGActiveProfileKey @"ActiveProfile"
 #define TGAllowAPIKey @"AllowAPI"           // other tweaks / the triggr tool may run actions, default off
-#define TGLockReplacesKey @"LockReplaces"   // experimental: assigned lock button presses replace iOS's, default off
+#define TGLockReplacesKey @"LockReplaces"   // assigned button presses replace iOS's own action (all buttons), default on
 // API: notify_post(TGAPIPrefix "run/<action>" | "trigger/<trigger>" | "menu/<id>").
 #define TGAPIPrefix "com.johndie.triggr/api/"
 
@@ -71,11 +71,11 @@ static const TGItem TGStateChanges[] = {
 };
 
 static const TGGroup TGTriggerGroups[] = {
-    {"Home Button", TGHomeButton, TG_COUNT(TGHomeButton), "Replaces the system action for that press (e.g. double = app switcher) only when you assign one."},
+    {"Home Button", TGHomeButton, TG_COUNT(TGHomeButton), NULL},
     {"Touch ID", TGTouchID, TG_COUNT(TGTouchID), "Light Double Tap is touching the sensor twice without clicking. iOS doesn't report single taps or holds while unlocked. Finger Rest and Match only work on the Lock Screen and run alongside unlocking."},
-    {"Lock Button", TGLockButton, TG_COUNT(TGLockButton), "Runs alongside the button, so the press still locks and nothing is delayed. To run instead, turn on Replace Lock Button Actions in Options."},
-    {"Volume Buttons", TGVolume, TG_COUNT(TGVolume), "A press replaces the volume step. Up, then Down (and the reverse) are two quick presses; they run alongside, and the volume ends where it started."},
-    {"Mute Switch", TGMuteSwitch, TG_COUNT(TGMuteSwitch), "Runs alongside the switch; it still mutes and unmutes."},
+    {"Lock Button", TGLockButton, TG_COUNT(TGLockButton), NULL},
+    {"Volume Buttons", TGVolume, TG_COUNT(TGVolume), "Up, then Down (and the reverse) are two quick presses; they always run alongside, and the volume ends where it started."},
+    {"Mute Switch", TGMuteSwitch, TG_COUNT(TGMuteSwitch), "With Replace on, the switch's position and the ringer can differ until you flip it back."},
     {"Status Bar", TGStatusBar, TG_COUNT(TGStatusBar), "Works on the Home Screen, Lock Screen and inside apps. A single tap still scrolls to the top."},
     {"Home Screen Icons", TGIcons, TG_COUNT(TGIcons), "A quick flick that starts on an app or folder icon on the Home Screen or in the Dock. Widgets, the App Library and jiggle mode are left alone. Flick Left and Flick Right take over page swipes that start on an icon."},
     {"Motion", TGMotion, TG_COUNT(TGMotion), "Uses iOS's own shake detection (the one behind Shake to Undo), so it costs no battery. Works while the phone is unlocked and awake; Shake to Undo still appears where an app offers it."},
@@ -181,23 +181,61 @@ static inline NSMutableArray<NSString *> *TGTidyPauses(NSArray<NSString *> *acti
     return result;
 }
 
-// What assigning an action to a trigger replaces (shown in the action picker).
-static inline NSString *TGTriggerWarning(NSString *trigger) {
-    NSDictionary *warnings = @{
-        @"home.single": @"Replaces the Home button's normal press (going Home, waking) wherever this assignment applies. Keep another way home, like the App Switcher.",
-        @"home.double": @"Replaces opening the App Switcher.",
-        @"touchid.doubletap": @"Replaces Reachability (the light double tap).",
-        @"home.triple": @"Replaces the Accessibility Shortcut, and makes double presses wait a moment to see if a third follows.",
-        @"home.longhold": @"Replaces holding for Siri.",
-        @"home.shorthold": @"A hold that's released before Siri appears.",
-        @"volume.up": @"Replaces changing the volume with this button.",
-        @"volume.down": @"Replaces changing the volume with this button.",
-        @"volume.uphold": @"Runs after holding for 0.5 s; the volume still changes by one step.",
-        @"volume.downhold": @"Runs after holding for 0.5 s; the volume still changes by one step.",
+// What a button or the mute switch does by itself, which is what happens while
+// nothing is assigned to it (nil: nothing, or not a button trigger).
+static inline NSString *TGDefaultActionTitle(NSString *trigger) {
+    return @{
+        @"home.single": @"Go Home", @"home.double": @"App Switcher", @"home.triple": @"Accessibility Shortcut",
+        @"home.longhold": @"Siri", @"touchid.doubletap": @"Reachability",
+        @"volume.up": @"Volume Up", @"volume.down": @"Volume Down",
+        @"lock.single": @"Lock", @"lock.longhold": @"Power Off Slider",
+        @"mute.silent": @"Mute", @"mute.ring": @"Unmute", @"mute.toggle": @"Mute / Unmute",
+    }[trigger];
+}
+
+// What assigning an action to a trigger does to the button's own action (shown in
+// the action picker). Button triggers depend on Replace Button Actions.
+static inline NSString *TGTriggerWarning(NSString *trigger, BOOL replaces) {
+    NSDictionary *buttons = replaces ? @{
+        @"home.single": @"Runs instead of going Home (or waking) wherever this assignment applies. To go Home as well, add Go to Home Screen.",
+        @"home.double": @"Runs instead of the App Switcher. To open it as well, add App Switcher.",
+        @"touchid.doubletap": @"Runs instead of Reachability (the light double tap). To keep it, add Reachability.",
+        @"home.triple": @"Runs instead of the Accessibility Shortcut, and double presses wait a moment to see if a third follows.",
+        @"home.longhold": @"Runs instead of Siri. To keep Siri, add Siri.",
+        @"volume.up": @"Runs instead of turning the volume up. To change it as well, add Volume Up (Media).",
+        @"volume.down": @"Runs instead of turning the volume down. To change it as well, add Volume Down (Media).",
         @"volume.both": @"Hold one volume button and press the other. The second button won't change the volume; the first may still move it one step.",
         @"volume.bothhold": @"Both volume buttons held for 0.5 s. The second button won't change the volume; the first may still move it one step.",
-        @"lock.single": @"Runs alongside every press, which still locks. To run instead, turn on Replace Lock Button Actions in Options.",
-        @"lock.longhold": @"Runs alongside the power-off slider. To run instead, turn on Replace Lock Button Actions in Options.",
+        @"lock.single": @"Runs instead of locking while the screen is on. To lock as well, add Sleep.",
+        @"lock.double": @"Single presses wait a moment to see if another follows.",
+        @"lock.triple": @"Single and double presses wait a moment to see if another follows.",
+        @"lock.longhold": @"Runs instead of the power-off slider. To show it as well, add Power Off Slider.",
+        @"mute.silent": @"Runs instead of muting, so the ringer stays on. To mute as well, add Mute On (Switches).",
+        @"mute.ring": @"Runs instead of unmuting, so the ringer stays off. To unmute as well, add Mute Off (Switches).",
+        @"mute.toggle": @"Runs instead of muting or unmuting. To change it as well, add Toggle Mute (Switches).",
+    } : @{
+        @"home.single": @"Runs alongside the normal press, which still goes Home.",
+        @"home.double": @"Runs alongside the App Switcher.",
+        @"touchid.doubletap": @"Runs alongside Reachability.",
+        @"home.triple": @"Runs alongside the Accessibility Shortcut.",
+        @"home.longhold": @"Runs alongside Siri.",
+        @"volume.up": @"Runs alongside the volume change.",
+        @"volume.down": @"Runs alongside the volume change.",
+        @"volume.both": @"Hold one volume button and press the other. Both still change the volume.",
+        @"volume.bothhold": @"Both volume buttons held for 0.5 s. Both still change the volume.",
+        @"lock.single": @"Runs alongside every press, which still locks.",
+        @"lock.double": @"Runs after the presses stop; each press still locks or wakes.",
+        @"lock.triple": @"Runs after the presses stop; each press still locks or wakes.",
+        @"lock.longhold": @"Runs alongside the power-off slider.",
+        @"mute.silent": @"Runs alongside the switch, which still mutes.",
+        @"mute.ring": @"Runs alongside the switch, which still unmutes.",
+        @"mute.toggle": @"Runs alongside the switch, which still mutes and unmutes.",
+    };
+    if (buttons[trigger]) return replaces ? buttons[trigger] : [buttons[trigger] stringByAppendingString:@" To run instead, turn on Replace Button Actions in Options."];
+    NSDictionary *warnings = @{
+        @"home.shorthold": @"A hold that's released before Siri appears.",
+        @"volume.uphold": @"Runs after holding for 0.5 s; the volume still changes by one step.",
+        @"volume.downhold": @"Runs after holding for 0.5 s; the volume still changes by one step.",
         @"icon.flickleft": @"A swipe to the next page that starts on an icon runs this instead. Swipe between icons to change pages.",
         @"icon.flickright": @"A swipe to the previous page that starts on an icon runs this instead. Swipe between icons to change pages.",
         @"icon.flickdown": @"A swipe down for Search that starts on an icon runs this instead.",

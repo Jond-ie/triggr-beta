@@ -38,14 +38,13 @@ not by building the source: the repo always has the current build.
 
 | Device | Status |
 |---|---|
-| **A11 and older (arm64) with Touch ID**, iOS 15–16 | Tested on iPhone 8 Plus, iOS 16.7 |
-| **A12 and newer** (iPhone XS / XR and later, all Face ID devices) | **Experimental build (arm64e):** [download it from Releases](../../releases/tag/v1.0.0-beta4-arm64e-experimental). It isn't on John's Repo and hasn't been tested on an A12+ device yet; if it lands you in safe mode, open Sileo and uninstall Triggr, then please [report it](../../issues/new/choose). The repo build is arm64 only and refuses to install on A12+. |
+| **A11 and older (arm64) with Touch ID**, iOS 15–16 | Tested on iPhone 8 Plus (iOS 16.7) and iPhone 7 (iOS 15.8.6) |
+| **A12 and newer** (iPhone XS / XR and later, all Face ID devices) | Included in the John's Repo build since 1.0.0~beta6 (arm64e), not confirmed on a device yet. If it lands you in safe mode, open Sileo and uninstall Triggr, then please [report it](../../issues/new/choose). |
 
-By default Triggr never delays or blocks the lock/side button. An optional,
-experimental setting (**Options → Replace Lock Button Actions**) lets an assigned
-press or hold run instead of locking, like Activator; it leaves the presses that
-Emergency SOS counts to iOS. If you rely on SOS, check it still starts after
-turning that setting on.
+With **Options → Replace Button Actions** on (the default), an assigned button
+press runs instead of the button's own action, like Activator; unassigned presses
+work as usual. Triggr leaves the presses that Emergency SOS counts to iOS. If you
+rely on SOS, check it still starts with your setup.
 
 ## Building
 
@@ -63,9 +62,10 @@ To build it yourself you need:
 make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
 ```
 
-The `.deb` lands in `packages/`. Builds are arm64 (A11 and older). A12+ needs a
-new-ABI arm64e slice, which needs Xcode's clang on macOS; the Linux toolchain's
-arm64e output doesn't load on iOS 15–16.
+The `.deb` lands in `packages/`. The Makefile builds arm64 only. Release builds
+add a new-ABI arm64e slice for A12+, which needs Xcode's clang on macOS
+(`make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless ARCHS="arm64 arm64e"`);
+the Linux toolchain's arm64e output doesn't load on iOS 15–16.
 
 ## Bugs and feature requests
 
@@ -113,11 +113,11 @@ open something.
 
 | Group | Triggers | Behaviour |
 |---|---|---|
-| Home Button | Single, Double, Triple, Short Hold, Long Hold | Replaces the system press when assigned. If Triple is assigned, a double press waits 0.35 s. |
-| Touch ID | Light Double Tap; Finger Rest, Finger Match (Lock Screen) | Light Double Tap replaces Reachability. iOS doesn't report single taps or holds while unlocked. |
-| Lock Button | Single, Double, Triple, Hold | Observe only by default: the press still locks and nothing is delayed. See **Lock button** below for the experimental replace mode. |
+| Home Button | Single, Double, Triple, Short Hold, Long Hold | Replaces the system press when assigned (see **Replace Button Actions**). If Triple is assigned, a double press waits 0.35 s. |
+| Touch ID | Light Double Tap; Finger Rest, Finger Match (Lock Screen) | Light Double Tap replaces Reachability; Finger Rest and Match run alongside unlocking. iOS doesn't report single taps or holds while unlocked. |
+| Lock Button | Single, Double, Triple, Hold | An assigned Single Press or Hold replaces locking or the power-off slider. See **Lock button** below. |
 | Volume Buttons | Up, Down, Up Hold, Down Hold, Up then Down, Down then Up, Press Both, Hold Both | A press replaces the volume step. A hold fires after 0.5 s. Up then Down (and the reverse) are two quick presses that run alongside. For Both, the first button may still move the volume one step. |
-| Mute Switch | Silent, Ring, Toggled | Runs alongside |
+| Mute Switch | Silent, Ring, Toggled | Replaces muting / unmuting when assigned (see **Replace Button Actions**); the switch's position and the ringer can then differ until it's flipped back. |
 | Status Bar | Tap, Double Tap | Home Screen and in apps (apps relay the tap to SpringBoard) |
 | Home Screen Icons | Flick Up, Down, Left, Right | A quick flick that starts on an app or folder icon on the Home Screen or in the Dock. Flick Left / Right take over page swipes that start on an icon, Flick Down takes over the pull for Search. Widgets, the App Library and jiggle mode are left alone. |
 | Motion | Shake Device | Uses iOS's own shake detection (the one behind Shake to Undo): no sensor runs for Triggr. Works while unlocked and awake. |
@@ -158,13 +158,25 @@ left dangling after an action is removed are cleared automatically. Adding an
 action that conflicts with the list shows a warning: something after Respring,
 Toggle and On/Off for the same switch, or two full-screen panels without a pause.
 
+### Replace Button Actions
+
+**Options → Replace Button Actions** (on by default) decides what an assigned
+button press does to the button's own action:
+
+- **On:** it runs instead, like Activator: an assigned Home press doesn't go Home,
+  an assigned volume press doesn't change the volume, an assigned lock press
+  doesn't lock, an assigned mute switch flip doesn't mute. To keep the button's
+  own action as well, add the matching action to the list (Go to Home Screen,
+  App Switcher, Siri, Reachability, Volume Up / Down, Sleep, Power Off Slider,
+  Mute On / Off).
+- **Off:** every press reaches iOS untouched and Triggr's actions run alongside.
+
+Touch ID Finger Rest / Match, volume holds and Up then Down always run alongside.
+
 ### Lock button
 
-By default the lock button is observe-only: every press reaches iOS, and Triggr's
-actions run alongside once the presses stop.
-
-**Options → Replace Lock Button Actions** (experimental, off by default) makes it
-work like Activator's sleep button:
+With Replace Button Actions on, the lock button works like Activator's sleep
+button:
 
 - An assigned **Single Press** runs instead of locking. With only Single Press
   assigned it runs at once; when Double or Triple Press is assigned too, presses
@@ -182,7 +194,8 @@ work like Activator's sleep button:
   Press set At Home Screen leaves the button locking normally inside apps and on
   the Lock Screen. Assign it in Anywhere to replace it everywhere.
 
-Profiles and imports never switch this on, and Reset to Defaults turns it off.
+With Replace Button Actions off, every press reaches iOS and Triggr's actions run
+alongside once the presses stop. Reset to Defaults turns it back on.
 
 ### Lock Screen
 
@@ -238,8 +251,8 @@ never with a synchronous LaunchServices call on the main thread.
 
 ### Notes and limits
 
-- Verified on an iPhone 8 Plus (A11, arm64), iOS 16.7, Dopamine. A12+ (arm64e) and
-  Face ID devices are untested.
+- Verified on an iPhone 8 Plus (A11, arm64), iOS 16.7 and an iPhone 7 (A10), iOS
+  15.8.6, both Dopamine. A12+ (arm64e) and Face ID devices are untested so far.
 - **Untested:**
   - Volume Up then Down / Down then Up with the real buttons (the press logic is
     verified through code)

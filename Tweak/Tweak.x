@@ -3,10 +3,10 @@
 // Every trigger hook asks the dispatcher for an action in the current mode
 // (lock screen / home screen / app, falling back to "Anywhere"). Only actions
 // Triggr can actually perform count as assigned, so an unfinished action can
-// never take a button away. Replacing triggers (home button, volume presses)
-// skip the system behaviour; the mute switch and Touch ID run alongside it.
-// The lock button is observe-only unless the user turns on the experimental
-// "Replace Lock Button Actions".
+// never take a button away. With "Replace Button Actions" on (the default), an
+// assigned home, Touch ID double tap, volume, lock or mute switch trigger skips
+// the system behaviour; with it off they run alongside. Touch ID finger events
+// and volume holds always run alongside.
 //
 // This library loads into SpringBoard only. Apps get the tiny Relay library,
 // which just reports their status bar taps and shakes (see Shared/TGRelay.h).
@@ -49,7 +49,7 @@ static void TGUpdateOtherEvents(void);
 static void TGUpdateAPI(void);
 static BOOL tgRequireUnlock = YES;
 static BOOL tgAllowAPI;
-static BOOL tgLockReplaces;
+static BOOL tgReplaces = YES; // assigned button triggers replace iOS's action; off = they run alongside
 static NSSet<NSString *> *tgBlockedApps;
 static BOOL tgShowBanners;
 static NSDictionary<NSString *, NSString *> *tgMenuNames; // id -> name
@@ -64,7 +64,7 @@ static void TGReadAssignments(void) {
     id allowAPI = CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)TGAllowAPIKey, domain));
     tgAllowAPI = [allowAPI respondsToSelector:@selector(boolValue)] && [allowAPI boolValue];
     id lockReplaces = CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)TGLockReplacesKey, domain));
-    tgLockReplaces = [lockReplaces respondsToSelector:@selector(boolValue)] && [lockReplaces boolValue];
+    tgReplaces = ![lockReplaces respondsToSelector:@selector(boolValue)] || [lockReplaces boolValue]; // on unless turned off
     id banners = CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)TGShowBannersKey, domain));
     tgShowBanners = [banners respondsToSelector:@selector(boolValue)] && [banners boolValue];
     id menus = CFBridgingRelease(CFPreferencesCopyAppValue((__bridge CFStringRef)TGMenusKey, domain));
@@ -542,20 +542,30 @@ static BOOL TGShutdown(BOOL restart, BOOL dryRun) {
 // (verified on iOS 15.8). There, an active SOS gesture is ended first and the
 // lock button's own sleep runs. Real SOS isn't affected: Triggr never acts on
 // four or more presses, so those stay iOS's. iOS 16 is unchanged (verified on 16.7).
+// The lock button's sleep/wake handler (SBSleepWakeHardwareButtonInteraction), or nil.
+static id TGSleepWakeInteraction(void) {
+    id springBoard = UIApplication.sharedApplication;
+    id button = [springBoard respondsToSelector:@selector(lockHardwareButton)] ? [springBoard performSelector:@selector(lockHardwareButton)] : nil;
+    id actions = [button respondsToSelector:@selector(buttonActions)] ? [button performSelector:@selector(buttonActions)] : nil;
+    return [actions respondsToSelector:@selector(sleepWakeButtonInteraction)] ? [actions performSelector:@selector(sleepWakeButtonInteraction)] : nil;
+}
+
 static BOOL TGSleep(BOOL dry) {
     id springBoard = UIApplication.sharedApplication;
     if (dry) return [springBoard respondsToSelector:@selector(_simulateLockButtonPress)];
-    if (@available(iOS 16, *)) {
-    } else {
-        id button = [springBoard respondsToSelector:@selector(lockHardwareButton)] ? [springBoard performSelector:@selector(lockHardwareButton)] : nil;
-        id actions = [button respondsToSelector:@selector(buttonActions)] ? [button performSelector:@selector(buttonActions)] : nil;
-        id interaction = [actions respondsToSelector:@selector(sleepWakeButtonInteraction)] ? [actions performSelector:@selector(sleepWakeButtonInteraction)] : nil;
-        if ([interaction respondsToSelector:@selector(isSOSGestureActive)] && [interaction respondsToSelector:@selector(setSOSGestureActive:)]
-            && [interaction respondsToSelector:@selector(_performSleep)] && ((BOOL (*)(id, SEL))objc_msgSend)(interaction, @selector(isSOSGestureActive))) {
-            ((void (*)(id, SEL, BOOL))objc_msgSend)(interaction, @selector(setSOSGestureActive:), NO);
-            ((void (*)(id, SEL))objc_msgSend)(interaction, @selector(_performSleep));
-            return YES;
-        }
+    // Right after quick lock presses (a triple press running Sleep) iOS is still
+    // counting them towards Emergency SOS and ignores sleep requests. Seen on
+    // iOS 15 and iOS 16: end that gesture first.
+    id interaction = TGSleepWakeInteraction();
+    if ([interaction respondsToSelector:@selector(isSOSGestureActive)] && [interaction respondsToSelector:@selector(setSOSGestureActive:)]
+        && ((BOOL (*)(id, SEL))objc_msgSend)(interaction, @selector(isSOSGestureActive))) {
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(interaction, @selector(setSOSGestureActive:), NO);
+    }
+    // The button's own sleep step (what a press ends up calling). A simulated press
+    // instead takes a darkened screen (Triple → Sleep's early dim) as already asleep.
+    if ([interaction respondsToSelector:@selector(_performSleep)]) {
+        ((void (*)(id, SEL))objc_msgSend)(interaction, @selector(_performSleep));
+        return YES;
     }
     return TGCall(springBoard, @selector(_simulateLockButtonPress), NO);
 }
@@ -989,7 +999,9 @@ static void TGUpdateAPI(void) {
     for (NSString *menuID in tgMenuNames) TGListenAPI([@"menu/" stringByAppendingString:menuID], ^{ TGRunActions(@[[TGMenuPrefix stringByAppendingString:menuID]]); });
 }
 
-#pragma mark - Home button (replaces the system action when assigned)
+#pragma mark - Home button
+// With Replace Button Actions on (the default) an assigned press replaces iOS's
+// action; with it off, iOS acts first and Triggr runs alongside.
 
 static const CFTimeInterval TGMultiPressWindow = 0.35;
 // Status bar double tap window (0.3 split some real double taps).
@@ -1008,7 +1020,7 @@ static NSUInteger tgHomeGeneration;
         // Third press inside the window: it's a triple.
         tgHomeAwaitingTriple = NO;
         tgHomeGeneration++;
-        tgHomeSwallowSingle = YES;
+        tgHomeSwallowSingle = tgReplaces;
         TGFire(@"home.triple");
     }
     tgHomeDownAt = CACurrentMediaTime();
@@ -1017,7 +1029,7 @@ static NSUInteger tgHomeGeneration;
 }
 - (void)initialButtonUp:(id)recognizer {
     CFTimeInterval held = CACurrentMediaTime() - tgHomeDownAt;
-    if (!tgHomeLongFired && held >= TGShortHoldMinimum && TGFire(@"home.shorthold")) tgHomeSwallowSingle = YES;
+    if (!tgHomeLongFired && held >= TGShortHoldMinimum && TGFire(@"home.shorthold")) tgHomeSwallowSingle = tgReplaces;
     %orig;
 }
 %end
@@ -1028,10 +1040,31 @@ static NSUInteger tgHomeGeneration;
         tgHomeSwallowSingle = NO;
         return;
     }
+    if (!tgReplaces) {
+        %orig;
+        TGFire(@"home.single");
+        return;
+    }
     if (TGFire(@"home.single")) return;
     %orig;
 }
 - (void)performDoublePressDownActions {
+    if (!tgReplaces) {
+        %orig;
+        if (!TGActionFor(@"home.triple")) {
+            TGFire(@"home.double");
+            return;
+        }
+        // iOS has had its double press; Triggr still waits to tell double from triple.
+        tgHomeAwaitingTriple = YES;
+        NSUInteger generation = ++tgHomeGeneration;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(TGMultiPressWindow * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (!tgHomeAwaitingTriple || generation != tgHomeGeneration) return;
+            tgHomeAwaitingTriple = NO;
+            TGFire(@"home.double");
+        });
+        return;
+    }
     if (TGActionFor(@"home.triple")) {
         // iOS never reports a triple here: wait briefly for a third press.
         tgHomeAwaitingTriple = YES;
@@ -1051,18 +1084,28 @@ static NSUInteger tgHomeGeneration;
 }
 - (void)performLongPressActions {
     tgHomeLongFired = YES;
+    if (!tgReplaces) {
+        %orig;
+        TGFire(@"home.longhold");
+        return;
+    }
     if (TGFire(@"home.longhold")) return;
     %orig;
 }
 // A light double tap on the Touch ID sensor (no click), which normally toggles
 // Reachability (verified on iOS 16.7). Single taps and holds aren't reported.
 - (void)performDoubleTapUpActions {
+    if (!tgReplaces) {
+        %orig;
+        TGFire(@"touchid.doubletap");
+        return;
+    }
     if (TGFire(@"touchid.doubletap")) return;
     %orig;
 }
 %end
 
-#pragma mark - Volume buttons (an assigned press replaces the volume change)
+#pragma mark - Volume buttons (an assigned press replaces the volume change, or runs alongside with Replace off)
 
 static const CFTimeInterval TGHoldDelay = 0.5; // iOS's own long press
 
@@ -1122,9 +1165,10 @@ static BOOL TGVolumeBegan(int which) {
     TGVolumeState *state = &tgVolume[which];
     *state = (TGVolumeState){ .down = YES, .downAt = CACurrentMediaTime(), .generation = state->generation + 1 };
     if (tgBothDown) {
-        // Second button of a both-buttons press: keep it away from the system.
+        // Second button of a both-buttons press: keep it away from the system when replacing.
         state->partOfBoth = YES;
-        return NO;
+        state->calledSystemOnDown = !tgReplaces;
+        return state->calledSystemOnDown;
     }
 
     if (TGActionFor(hold)) {
@@ -1136,7 +1180,7 @@ static BOOL TGVolumeBegan(int which) {
             TGFire(hold);
         });
     }
-    state->calledSystemOnDown = TGActionFor(press) == nil;
+    state->calledSystemOnDown = !tgReplaces || TGActionFor(press) == nil;
     return state->calledSystemOnDown;
 }
 
@@ -1162,7 +1206,7 @@ static BOOL TGVolumeEnded(int which) {
     state->down = NO;
     if (state->holdFired || state->partOfBoth) tgVolumeLastTap = -1;
     else if ([tgAssignedTriggers containsObject:@"volume.updown"] || [tgAssignedTriggers containsObject:@"volume.downup"]) TGVolumeTapped(which);
-    if (!state->calledSystemOnDown && !state->holdFired && !state->partOfBoth) TGFire(press);
+    if ((!state->calledSystemOnDown || !tgReplaces) && !state->holdFired && !state->partOfBoth) TGFire(press);
     return state->calledSystemOnDown;
 }
 
@@ -1186,15 +1230,15 @@ static BOOL TGVolumeEnded(int which) {
 %end
 
 #pragma mark - Lock button
-// Normally observe-only: every press goes to iOS untouched and Triggr's actions
-// run alongside, after the presses stop.
+// With Replace Button Actions on (the default), an assigned press or hold runs
+// instead of iOS's, like Activator. With it off, every press goes to iOS
+// untouched and Triggr's actions run alongside, after the presses stop.
 //
-// With the experimental "Replace Lock Button Actions" on, an assigned press or
-// hold runs instead of iOS's, like Activator. Only iOS's reaction to a press
-// is skipped: the button-down events that Emergency SOS counts, the hold with a
-// volume button and the force restart never pass through these methods. A
-// press that starts on a dark screen is never replaced, so the button always
-// wakes the phone, and four or more presses are left to iOS.
+// Replacing only skips iOS's reaction to a press: the button-down events that
+// Emergency SOS counts, the hold with a volume button and the force restart
+// never pass through these methods. A press that starts on a dark screen is
+// never replaced, so the button always wakes the phone, and four or more
+// presses are left to iOS.
 //
 // Verified on iOS 16.7: a press is performInitialButtonDownActions (which wakes
 // a dark screen) and then singlePress:, whose own work is what locks.
@@ -1208,6 +1252,19 @@ static CFTimeInterval tgLockLastPress;
 static NSUInteger tgLockGeneration;
 static BOOL tgLockHoldReplaced;
 static BOOL tgLockScreenWasOn = YES; // when the button went down
+static BOOL tgLockDimmed;             // Triple → Sleep went dark early, the real Sleep is pending
+
+// Triple → Sleep can't run until the wait rules out a 4th press (Emergency SOS),
+// and Sleep has to end the SOS press count iOS keeps. So the third press only
+// turns the backlight off, which leaves SOS alone; the wait then sleeps for real,
+// or a 4th press turns the backlight straight back on.
+static BOOL TGSetBacklight(float factor) {
+    id backlight = TGShared("SBBacklightController");
+    SEL animate = @selector(_animateBacklightToFactor:duration:source:silently:completion:);
+    if (![backlight respondsToSelector:animate]) return NO;
+    ((void (*)(id, SEL, float, double, long long, BOOL, id))objc_msgSend)(backlight, animate, factor, 0.18, 3, NO, nil);
+    return YES;
+}
 
 static BOOL TGScreenIsOn(void) {
     id backlight = TGShared("SBBacklightController");
@@ -1220,6 +1277,12 @@ static BOOL TGLockPressInUse(void) {
 
 %hook SBLockHardwareButtonActions
 - (void)performInitialButtonDownActions {
+    if (tgLockDimmed) {
+        // A 4th press: no Sleep after all. Light the screen and drop the pending triple.
+        tgLockDimmed = NO;
+        tgLockGeneration++;
+        TGSetBacklight(1);
+    }
     tgLockScreenWasOn = TGScreenIsOn(); // read before iOS wakes the screen for this press
     %orig;
 }
@@ -1228,11 +1291,11 @@ static BOOL TGLockPressInUse(void) {
 %hook SBLockHardwareButton
 - (void)singlePress:(id)recognizer {
     BOOL woke = !tgLockScreenWasOn; // this press only woke the phone; it isn't a trigger
-    if (!TGLockPressInUse() || (woke && tgLockReplaces)) {
+    if (!TGLockPressInUse() || (woke && tgReplaces)) {
         %orig;
         return;
     }
-    BOOL replace = tgLockReplaces && (TGActionFor(@"lock.single") || TGActionFor(@"lock.double") || TGActionFor(@"lock.triple"));
+    BOOL replace = tgReplaces && (TGActionFor(@"lock.single") || TGActionFor(@"lock.double") || TGActionFor(@"lock.triple"));
     BOOL multiple = TGActionFor(@"lock.double") || TGActionFor(@"lock.triple");
     if (replace && !multiple) {
         // Only Single Press is assigned: nothing to wait for.
@@ -1247,13 +1310,20 @@ static BOOL TGLockPressInUse(void) {
     tgLockPresses = (now - tgLockLastPress < TGLockPressWindow) ? tgLockPresses + 1 : 1;
     tgLockLastPress = now;
     NSUInteger generation = ++tgLockGeneration;
+    if (replace && tgLockPresses == 3 && [TGActionFor(@"lock.triple").firstObject isEqualToString:@"system.sleep"]
+        && [TGSleepWakeInteraction() respondsToSelector:@selector(_performSleep)] && TGSetBacklight(0)) {
+        tgLockDimmed = YES;
+    }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(TGLockPressWindow * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (generation != tgLockGeneration) return;
         NSUInteger count = tgLockPresses;
         tgLockPresses = 0;
+        BOOL dimmed = tgLockDimmed;
+        tgLockDimmed = NO;
         if (count > 3) return; // Emergency SOS territory; never act on it
         if (count == 1 && woke) return;
         BOOL ran = TGFire(count == 1 ? @"lock.single" : count == 2 ? @"lock.double" : @"lock.triple");
+        if (dimmed && !ran) TGSetBacklight(1); // the Sleep didn't happen after all
         // Replacing, but this many presses has nothing assigned: iOS gets its press after all.
         if (!ran && replace) {
             system();
@@ -1263,10 +1333,10 @@ static BOOL TGLockPressInUse(void) {
 - (void)longPress:(UIGestureRecognizer *)recognizer {
     // Called when the hold begins and again when it ends: act once.
     if (recognizer.state == UIGestureRecognizerStateBegan) {
-        tgLockHoldReplaced = tgLockReplaces && tgLockScreenWasOn && TGFire(@"lock.longhold");
+        tgLockHoldReplaced = tgReplaces && tgLockScreenWasOn && TGFire(@"lock.longhold");
         if (tgLockHoldReplaced) return;
         %orig;
-        if (!tgLockReplaces) TGFire(@"lock.longhold");
+        if (!tgReplaces) TGFire(@"lock.longhold");
         return;
     }
     if (tgLockHoldReplaced) {
@@ -1277,13 +1347,42 @@ static BOOL TGLockPressInUse(void) {
 }
 %end
 
-#pragma mark - Mute switch (runs alongside: the switch still mutes)
+#pragma mark - Mute switch
+// A flip arrives as -[SpringBoard _ringerChanged:] (the hardware event), which
+// applies it through _updateRingerState:withVisuals:updatePreferenceRegister:
+// (state 1 = Ring, 0 = Silent; verified on iOS 15.8 against isRingerMuted).
+// With Replace Button Actions on, an assigned flip skips that, so the ringer
+// keeps its state; the Mute switch action changes it in software. With it off,
+// iOS mutes first and Triggr runs alongside (from the ringer HUD, as before).
+
+static BOOL tgRingerFromSwitch;
+static BOOL tgRingerReplaced;
+
+static BOOL TGMuteSwitchFire(long long state) {
+    return TGFire(state ? @"mute.ring" : @"mute.silent") || TGFire(@"mute.toggle");
+}
+
+%hook SpringBoard
+- (void)_ringerChanged:(void *)event {
+    tgRingerFromSwitch = YES;
+    tgRingerReplaced = NO;
+    %orig;
+    tgRingerFromSwitch = NO;
+}
+- (void)_updateRingerState:(int)state withVisuals:(BOOL)visuals updatePreferenceRegister:(BOOL)update {
+    if (tgRingerFromSwitch && tgReplaces && TGMuteSwitchFire(state)) {
+        tgRingerReplaced = YES;
+        return;
+    }
+    %orig;
+}
+%end
 
 %hook SBRingerControl
 - (void)activateRingerHUDFromMuteSwitch:(long long)state {
     %orig;
-    // Verified on-device: 1 = switched to Ring, 0 = switched to Silent.
-    if (!TGFire(state ? @"mute.ring" : @"mute.silent")) TGFire(@"mute.toggle");
+    if (tgRingerReplaced) return; // already ran instead of the switch
+    TGMuteSwitchFire(state);
 }
 %end
 
