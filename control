@@ -1,6 +1,6 @@
 Package: com.johndie.triggr
 Name: Triggr
-Version: 1.0.0~beta3
+Version: 1.0.0~beta4
 Architecture: iphoneos-arm64
 Description: Activator-lite for rootless Dopamine: assign actions to the home, lock and volume buttons, Touch ID, the mute switch, status bar taps, icon flicks, shaking, and events like charger, Wi-Fi, battery level or a time of day. arm64 (A11 and older) only for now.
 Maintainer: John d_ie

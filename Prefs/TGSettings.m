@@ -193,6 +193,7 @@ static PSSpecifier *TGSwitchRow(NSString *name, NSString *key, BOOL defaultValue
 @interface TGListController : PSListController
 - (NSString *)swipeTitleForSpecifier:(PSSpecifier *)spec; // nil: this row can't be swiped
 - (BOOL)swipedSpecifier:(PSSpecifier *)spec;              // do it; YES when the row goes away
+- (BOOL)lockReplaces;
 @end
 
 @implementation TGListController
@@ -203,6 +204,14 @@ static PSSpecifier *TGSwitchRow(NSString *name, NSString *key, BOOL defaultValue
 
 - (BOOL)swipedSpecifier:(PSSpecifier *)spec {
     return NO;
+}
+
+- (BOOL)lockReplaces {
+    PSSpecifier *setting = [PSSpecifier emptyGroupSpecifier];
+    [setting setProperty:TGDomain forKey:@"defaults"];
+    [setting setProperty:TGLockReplacesKey forKey:@"key"];
+    id value = [self readPreferenceValue:setting];
+    return [value respondsToSelector:@selector(boolValue)] && [value boolValue];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -505,6 +514,20 @@ static NSArray<NSArray<NSString *> *> *TGCategories(void) {
         @[@"open", @"Open"], @[@"text", @"Text & Commands"], @[@"menus", @"Menus"]];
 }
 
+static void TGSetCategoryIcon(PSSpecifier *spec, NSString *category) {
+    NSDictionary<NSString *, NSArray *> *icons = @{
+        @"system": @[@"house.fill", UIColor.systemBlueColor],
+        @"power": @[@"power", UIColor.systemRedColor],
+        @"switches": @[@"switch.2", UIColor.systemGreenColor],
+        @"media": @[@"play.fill", UIColor.systemPinkColor],
+        @"levels": @[@"slider.horizontal.3", UIColor.systemOrangeColor],
+        @"open": @[@"arrow.up.right.square.fill", UIColor.systemIndigoColor],
+        @"text": @[@"text.bubble.fill", UIColor.systemTealColor],
+        @"menus": @[@"list.bullet.rectangle.fill", UIColor.systemPurpleColor],
+    };
+    if (icons[category]) TGSetIcon(spec, icons[category][0], icons[category][1]);
+}
+
 static NSString *TGCategoryOf(NSString *action) {
     if ([action hasPrefix:TGMenuPrefix]) return @"menus";
     for (NSString *prefix in @[TGBrightnessPrefix, TGMediaVolumePrefix, TGRingerVolumePrefix]) if ([action hasPrefix:prefix]) return @"levels";
@@ -563,27 +586,44 @@ static NSString *TGCategoryOf(NSString *action) {
 
 - (NSMutableArray *)categorySpecifiers {
     NSMutableArray *specs = [NSMutableArray array];
-    PSSpecifier *top = [PSSpecifier groupSpecifierWithName:nil];
     NSMutableArray *notes = [NSMutableArray array];
-    if (_selection.count > 1) {
-        NSMutableArray *titles = [NSMutableArray array];
-        for (NSString *action in _selection) [titles addObject:TGDisplayTitle(action)];
-        [notes addObject:[@"Runs: " stringByAppendingString:[titles componentsJoinedByString:@" → "]]];
-    } else if (!_selection.count) {
-        [notes addObject:_menuEditor ? @"Open a category and tap the actions this menu should offer." : @"Open a category and tap an action. Pick several to run them in the order you pick them."];
-    }
-    if (TGTriggerWarning(_trigger)) [notes addObject:TGButtonText(TGTriggerWarning(_trigger))];
     // Assignments outside Anywhere only work in their place; say so where it's picked.
-    if (_mode && ![_mode isEqualToString:@"anywhere"]) [notes insertObject:[NSString stringWithFormat:@"This assignment only works %@.", TGModePhrase(_mode)] atIndex:0];
+    if (_mode && ![_mode isEqualToString:@"anywhere"]) [notes addObject:[NSString stringWithFormat:@"This assignment only works %@.", TGModePhrase(_mode)]];
     NSArray *anywhere = (!_mode || [_mode isEqualToString:@"anywhere"]) ? nil : TGReadAssignment(self, @"anywhere", _trigger);
-    if (anywhere.count) [notes addObject:[NSString stringWithFormat:@"Anywhere runs %@ for this trigger. Actions picked here replace it %@; None keeps Anywhere's.", TGListTitle(anywhere), TGModePhrase(_mode)]];
-    [top setProperty:[notes componentsJoinedByString:@"\n\n"] forKey:@"footerText"];
-    [specs addObject:top];
-    [specs addObject:[self rowForAction:@"" title:@"None"]];
+    if (anywhere.count) [notes addObject:[NSString stringWithFormat:@"Anywhere runs %@ for this trigger. Actions picked here replace it %@; leave this empty to keep Anywhere's.", TGListTitle(anywhere), TGModePhrase(_mode)]];
+    NSString *warning = TGTriggerWarning(_trigger);
+    // Lock button notes depend on Replace Lock Button Actions; describe the current behavior.
+    if ([_trigger hasPrefix:@"lock."] && [self lockReplaces]) warning = @{
+        @"lock.single": @"Runs instead of locking while the screen is on. Add Sleep to the list to lock as well.",
+        @"lock.longhold": @"Runs instead of the power-off slider.",
+        @"lock.double": @"Single presses wait a moment to see if another follows.",
+        @"lock.triple": @"Single and double presses wait a moment to see if another follows.",
+    }[_trigger] ?: warning;
+    if (warning) [notes addObject:TGButtonText(warning)];
+
+    // What's picked, in run order, so it's visible without opening each category.
+    PSSpecifier *picked = [PSSpecifier groupSpecifierWithName:_selection.count ? (_menuEditor ? @"In This Menu" : _selection.count > 1 ? @"Runs in This Order" : @"Selected") : nil];
+    if (_selection.count) [notes insertObject:@"Swipe left on one to remove it." atIndex:0];
+    else [notes insertObject:_menuEditor ? @"Nothing in this menu yet. Open a category below and tap the actions it should offer."
+        : @"Nothing picked yet. Open a category below and tap an action. Pick several to run them in order." atIndex:0];
+    [picked setProperty:[notes componentsJoinedByString:@"\n\n"] forKey:@"footerText"];
+    [specs addObject:picked];
+    NSUInteger number = 0;
+    for (NSString *item in _selection) {
+        BOOL pause = [item hasPrefix:TGPausePrefix];
+        NSString *title = TGDisplayTitle(item);
+        if (!pause && _selection.count > 1) title = [NSString stringWithFormat:@"%lu.  %@", (unsigned long)++number, title];
+        PSSpecifier *row = [PSSpecifier preferenceSpecifierNamed:title target:self set:nil get:nil detail:nil cell:PSListItemCell edit:nil];
+        [row setProperty:item forKey:@"tgPicked"];
+        [specs addObject:row];
+    }
     if (_selection.count > 1) {
         PSSpecifier *order = [PSSpecifier preferenceSpecifierNamed:@"Order & Pauses" target:self set:nil get:nil detail:nil cell:PSListItemCell edit:nil];
         [order setProperty:@YES forKey:@"tgOrder"];
         [specs addObject:order];
+        PSSpecifier *clear = [PSSpecifier preferenceSpecifierNamed:@"Remove All" target:self set:nil get:nil detail:nil cell:PSListItemCell edit:nil];
+        [clear setProperty:@YES forKey:@"tgClear"];
+        [specs addObject:clear];
     }
     [specs addObject:[PSSpecifier groupSpecifierWithName:@"Actions"]];
     for (NSArray<NSString *> *category in TGCategories()) {
@@ -591,6 +631,7 @@ static NSString *TGCategoryOf(NSString *action) {
         if (!rows.count) continue;
         PSSpecifier *header = [PSSpecifier preferenceSpecifierNamed:category[1] target:self set:nil get:nil detail:nil cell:PSListItemCell edit:nil];
         [header setProperty:category[0] forKey:@"tgCategory"];
+        TGSetCategoryIcon(header, category[0]);
         [specs addObject:header];
         if ([_expanded isEqualToString:category[0]]) [specs addObjectsFromArray:rows];
     }
@@ -737,7 +778,60 @@ static NSString *TGCategoryOf(NSString *action) {
     [self save];
 }
 
+#pragma mark Selected rows
+
+- (NSString *)swipeTitleForSpecifier:(PSSpecifier *)spec {
+    return [spec propertyForKey:@"tgPicked"] ? @"Remove" : nil;
+}
+
+- (BOOL)swipedSpecifier:(PSSpecifier *)spec {
+    NSString *item = [spec propertyForKey:@"tgPicked"];
+    NSUInteger index = [_selection indexOfObject:item];
+    if (index == NSNotFound) return NO;
+    [_selection removeObjectAtIndex:index];
+    _selection = TGTidyPauses(_selection);
+    [self setPreferenceValue:TGStoredValue(_selection) specifier:self.specifier];
+    return YES;
+}
+
+// Tapping a picked row opens its category with that row in view.
+- (void)revealItem:(NSString *)item {
+    NSString *category = TGCategoryOf(item);
+    if (!category) return;
+    _expanded = category;
+    [self reloadSpecifiers];
+    for (PSSpecifier *row in self.specifiers) {
+        NSString *action = [row propertyForKey:@"tgAction"], *prefix = [row propertyForKey:@"tgCommandPrefix"], *name = [row propertyForKey:@"tgSwitch"];
+        BOOL match = (action.length && [action isEqualToString:item]) || (prefix && [item hasPrefix:prefix])
+            || (name && [@[@"toggle.", @"on.", @"off."] indexOfObjectPassingTest:^BOOL(NSString *verb, NSUInteger i, BOOL *stop) { return [item isEqualToString:[verb stringByAppendingString:name]]; }] != NSNotFound);
+        if (!match) continue;
+        NSIndexPath *path = [self indexPathForSpecifier:row];
+        [self.table scrollToRowAtIndexPath:path atScrollPosition:UITableViewScrollPositionMiddle animated:YES];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self.table selectRowAtIndexPath:path animated:NO scrollPosition:UITableViewScrollPositionNone];
+            [self.table deselectRowAtIndexPath:path animated:YES];
+        });
+        return;
+    }
+}
+
 #pragma mark Cells
+
+- (NSString *)titleForCategory:(NSString *)category {
+    for (NSArray<NSString *> *entry in TGCategories()) if ([entry[0] isEqualToString:category]) return entry[1];
+    return nil;
+}
+
+// 1-based run position among the picked actions (pauses not counted).
+- (NSUInteger)positionOfItem:(NSString *)item {
+    NSUInteger number = 0;
+    for (NSString *picked in _selection) {
+        if ([picked hasPrefix:TGPausePrefix]) continue;
+        number++;
+        if ([picked isEqualToString:item]) return number;
+    }
+    return 0;
+}
 
 // What's picked inside a category, shown on its row while it's closed or open.
 - (NSString *)summaryForCategory:(NSString *)category {
@@ -752,11 +846,23 @@ static NSString *TGCategoryOf(NSString *action) {
     NSString *category = [spec propertyForKey:@"tgCategory"], *action = [spec propertyForKey:@"tgAction"];
     NSString *prefix = [spec propertyForKey:@"tgCommandPrefix"], *name = [spec propertyForKey:@"tgSwitch"];
     UIFont *body = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
-    cell.textLabel.font = category ? [UIFont systemFontOfSize:body.pointSize weight:UIFontWeightSemibold] : body;
+    NSString *picked = [spec propertyForKey:@"tgPicked"];
+    cell.textLabel.font = body;
+    cell.textLabel.textColor = [spec propertyForKey:@"tgClear"] ? UIColor.systemRedColor
+        : [picked hasPrefix:TGPausePrefix] ? UIColor.secondaryLabelColor : UIColor.labelColor;
     cell.accessoryView = nil;
     cell.accessoryType = UITableViewCellAccessoryNone;
+    // An open category's rows line up under its title, past the icon.
+    BOOL child = !_query && !picked && !category && ![spec propertyForKey:@"tgOrder"] && ![spec propertyForKey:@"tgClear"];
+    static UIImage *spacer;
+    if (!spacer) spacer = [[[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(29, 29)] imageWithActions:^(UIGraphicsImageRendererContext *context) {}];
+    if (child) cell.imageView.image = spacer;
+    else if (!category) cell.imageView.image = nil;
+    cell.separatorInset = UIEdgeInsetsMake(0, child ? 60 : (category ? 60 : 16), 0, 0);
     NSString *detail = nil;
-    if (category) {
+    if (picked) {
+        if (TGCategoryOf(picked)) detail = [self titleForCategory:TGCategoryOf(picked)];
+    } else if (category) {
         BOOL open = [_expanded isEqualToString:category];
         UIImage *chevron = [UIImage systemImageNamed:open ? @"chevron.down" : @"chevron.right"
             withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:13 weight:UIImageSymbolWeightSemibold]];
@@ -769,6 +875,8 @@ static NSString *TGCategoryOf(NSString *action) {
     } else if (action) {
         BOOL selected = action.length ? [_selection containsObject:action] : _selection.count == 0;
         if (selected) cell.accessoryType = UITableViewCellAccessoryCheckmark;
+        // With several picked, show where this one runs in the list.
+        if (selected && action.length && _selection.count > 1) detail = [NSString stringWithFormat:@"%lu", (unsigned long)[self positionOfItem:action]];
     } else if (name) {
         NSArray *verbs = [self verbsForSwitch:name];
         if (verbs.count) cell.accessoryType = UITableViewCellAccessoryCheckmark;
@@ -778,6 +886,11 @@ static NSString *TGCategoryOf(NSString *action) {
         if (item) cell.accessoryType = UITableViewCellAccessoryCheckmark;
         BOOL titled = [prefix isEqualToString:TGAppPrefix] || [prefix isEqualToString:TGSettingsPrefix];
         if (item) detail = titled ? [TGDisplayTitle(item) substringFromIndex:[TGDisplayTitle(item) rangeOfString:@" "].location + 1] : [item substringFromIndex:prefix.length];
+    }
+    // Search mixes every category; say where each result lives.
+    if (_query && !detail.length && !picked) {
+        NSString *item = action.length ? action : prefix ?: (name ? [@"toggle." stringByAppendingString:name] : nil);
+        if (item) detail = [self titleForCategory:TGCategoryOf(item)];
     }
     cell.detailTextLabel.text = detail;
     return cell;
@@ -853,8 +966,21 @@ static NSString *TGCategoryOf(NSString *action) {
         }
         return;
     }
+    NSString *picked = [spec propertyForKey:@"tgPicked"];
+    if (picked) {
+        [self revealItem:picked];
+        return;
+    }
+    if ([spec propertyForKey:@"tgClear"]) {
+        UIAlertController *sheet = [UIAlertController alertControllerWithTitle:nil message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+        [sheet addAction:[UIAlertAction actionWithTitle:@"Remove All Actions" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a) { [self toggle:@""]; }]];
+        [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+        [self presentSheet:sheet fromRowAtIndexPath:indexPath];
+        return;
+    }
     NSString *action = [spec propertyForKey:@"tgAction"];
     if (action) {
+        [[UISelectionFeedbackGenerator new] selectionChanged];
         [self toggle:action];
         return;
     }
@@ -940,6 +1066,22 @@ static NSInteger TGGroupOfTrigger(NSString *trigger) {
     return NSNotFound;
 }
 
+// Lists of assigned triggers follow the catalog order (Single, Double, Triple...),
+// with custom events after them by name.
+static NSInteger TGTriggerRank(NSString *trigger) {
+    NSInteger rank = 0;
+    for (int g = 0; g < TG_COUNT(TGTriggerGroups); g++)
+        for (int i = 0; i < TGTriggerGroups[g].count; i++, rank++)
+            if ([trigger isEqualToString:@(TGTriggerGroups[g].items[i].identifier)]) return rank;
+    return NSIntegerMax;
+}
+
+static NSComparator const TGCatalogOrder = ^NSComparisonResult(PSSpecifier *a, PSSpecifier *b) {
+    NSInteger ra = TGTriggerRank([a propertyForKey:@"tgTrigger"]), rb = TGTriggerRank([b propertyForKey:@"tgTrigger"]);
+    if (ra != rb) return ra < rb ? NSOrderedAscending : NSOrderedDescending;
+    return [a.name localizedStandardCompare:b.name];
+};
+
 @interface TGGroupController : TGListController
 @end
 
@@ -960,16 +1102,11 @@ static NSInteger TGGroupOfTrigger(NSString *trigger) {
             const TGGroup *triggers = &TGTriggerGroups[_group];
             PSSpecifier *group = [PSSpecifier groupSpecifierWithName:nil];
             NSString *footer = triggers->footer ? @(triggers->footer) : nil;
+            if (triggers->items == TGLockButton && [self lockReplaces])
+                footer = @"Replace Lock Button Actions is on (Options): an assigned Single Press or Hold runs instead of locking or the power-off slider. Unassigned presses work as usual.";
             // On Face ID devices Apple calls the lock button the side button.
             if (triggers->items == TGLockButton && !TGHasHomeButton() && UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPhone)
                 footer = [footer stringByAppendingString:@" On Face ID devices a double-click still opens Wallet / Apple Pay and a triple-click still runs the Accessibility Shortcut, because Triggr runs alongside them. (Untested on Face ID devices.)"];
-            if (triggers->items == TGLockButton) {
-                PSSpecifier *setting = [PSSpecifier emptyGroupSpecifier];
-                [setting setProperty:TGDomain forKey:@"defaults"];
-                [setting setProperty:TGLockReplacesKey forKey:@"key"];
-                if ([[self readPreferenceValue:setting] respondsToSelector:@selector(boolValue)] && [[self readPreferenceValue:setting] boolValue])
-                    footer = @"Replace Lock Button Actions is on (Options): an assigned Single Press or Hold runs instead of locking or the power-off slider, and unassigned presses work as usual. Add Sleep to an action list to lock as well.";
-            }
             if (footer) [group setProperty:TGButtonText(footer) forKey:@"footerText"];
             [specs addObject:group];
             for (int i = 0; i < triggers->count; i++)
@@ -1177,7 +1314,7 @@ static NSInteger TGGroupOfTrigger(NSString *trigger) {
             [specs addObject:group];
             NSMutableArray *rows = [NSMutableArray array];
             for (NSString *trigger in assigned) [rows addObject:TGSubtitled(TGTriggerRow(TGSettingsTriggerTitle(trigger), self, @selector(assignedActionTitle:), _mode, trigger))];
-            [specs addObjectsFromArray:[rows sortedArrayUsingComparator:^NSComparisonResult(PSSpecifier *a, PSSpecifier *b) { return [a.name localizedStandardCompare:b.name]; }]];
+            [specs addObjectsFromArray:[rows sortedArrayUsingComparator:TGCatalogOrder]];
         }
 
         PSSpecifier *group = [PSSpecifier groupSpecifierWithName:@"Triggers"];
@@ -1309,7 +1446,6 @@ static PSSpecifier *TGTriggerRow(NSString *name, id target, SEL getter, NSString
             : _byAction ? @"Grouped by what runs. Tap a trigger to change it, or swipe left to take that action off it."
             : @"Grouped by where it works. Tap one to change it, or swipe left to remove it." forKey:@"footerText"];
         [specs addObject:top];
-        NSComparator byName = ^NSComparisonResult(PSSpecifier *a, PSSpecifier *b) { return [a.name localizedStandardCompare:b.name]; };
         if (!_byAction) {
             for (int m = 0; m < TG_COUNT(TGModes); m++) {
                 NSString *prefix = [@(TGModes[m].identifier) stringByAppendingString:@"/"];
@@ -1321,7 +1457,7 @@ static PSSpecifier *TGTriggerRow(NSString *name, id target, SEL getter, NSString
                 }
                 if (!rows.count) continue;
                 [specs addObject:[PSSpecifier groupSpecifierWithName:@(TGModes[m].title)]];
-                [specs addObjectsFromArray:[rows sortedArrayUsingComparator:byName]];
+                [specs addObjectsFromArray:[rows sortedArrayUsingComparator:TGCatalogOrder]];
             }
             _specifiers = specs;
             return _specifiers;
@@ -1341,7 +1477,7 @@ static PSSpecifier *TGTriggerRow(NSString *name, id target, SEL getter, NSString
         }];
         for (NSString *title in [byAction.allKeys sortedArrayUsingSelector:@selector(localizedStandardCompare:)]) {
             [specs addObject:[PSSpecifier groupSpecifierWithName:title]];
-            [specs addObjectsFromArray:[byAction[title] sortedArrayUsingComparator:byName]];
+            [specs addObjectsFromArray:[byAction[title] sortedArrayUsingComparator:TGCatalogOrder]];
         }
         _specifiers = specs;
     }
@@ -1781,7 +1917,7 @@ static NSString *TGSetupSummary(NSDictionary *setup, BOOL *hasCommands, BOOL *ha
         [specs addObject:TGSwitchRow(@"Commands Need Passcode", TGRequireUnlockKey, YES, self)];
 
         PSSpecifier *lockButton = [PSSpecifier groupSpecifierWithName:TGButtonText(@"Lock Button (Experimental)")];
-        [lockButton setProperty:TGButtonText(@"Off: lock button triggers run alongside the button. On: an assigned Single Press or Hold runs instead of locking or the power-off slider, and presses wait a moment when Double or Triple Press is assigned. The button always wakes a sleeping phone, and Emergency SOS and force restart don't go through Triggr.") forKey:@"footerText"];
+        [lockButton setProperty:TGButtonText(@"On: an assigned Single Press or Hold runs instead of locking or the power-off slider, and presses wait a moment when Double or Triple Press is assigned. Off: everything runs alongside the button. Waking, Emergency SOS and force restart always work as usual.") forKey:@"footerText"];
         [specs addObject:lockButton];
         PSSpecifier *replace = [PSSpecifier preferenceSpecifierNamed:TGButtonText(@"Replace Lock Button Actions") target:self set:@selector(setLockReplaces:specifier:)
             get:@selector(readPreferenceValue:) detail:nil cell:PSSwitchCell edit:nil];
@@ -1792,7 +1928,7 @@ static NSString *TGSetupSummary(NSDictionary *setup, BOOL *hasCommands, BOOL *ha
         [specs addObject:replace];
 
         PSSpecifier *api = [PSSpecifier groupSpecifierWithName:@"API"];
-        [api setProperty:@"Lets other tweaks and the triggr command-line tool run built-in actions, your assigned triggers and your menus (never shell commands, URLs or apps directly). Any app could ask, so only turn this on if you use it. Run \"triggr list\" in a terminal for the ids." forKey:@"footerText"];
+        [api setProperty:@"Lets other tweaks and the triggr command run your triggers, menus and built-in actions (never shell commands, URLs or apps directly). Any app could ask, so leave it off unless you use it. \"triggr list\" shows the ids." forKey:@"footerText"];
         [specs addObject:api];
         [specs addObject:TGSwitchRow(@"Allow API", TGAllowAPIKey, NO, self)];
         _specifiers = specs;

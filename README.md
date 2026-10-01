@@ -39,7 +39,7 @@ not by building the source: the repo always has the current build.
 | Device | Status |
 |---|---|
 | **A11 and older (arm64) with Touch ID**, iOS 15–16 | Tested on iPhone 8 Plus, iOS 16.7 |
-| **A12 and newer** (iPhone XS / XR and later, all Face ID devices) | **Experimental build (arm64e):** [download it from Releases](../../releases/tag/v1.0.0-beta3-arm64e-experimental). It isn't on John's Repo and hasn't been tested on an A12+ device yet; if it lands you in safe mode, open Sileo and uninstall Triggr, then please [report it](../../issues/new/choose). The repo build is arm64 only and refuses to install on A12+. |
+| **A12 and newer** (iPhone XS / XR and later, all Face ID devices) | **Experimental build (arm64e):** [download it from Releases](../../releases/tag/v1.0.0-beta4-arm64e-experimental). It isn't on John's Repo and hasn't been tested on an A12+ device yet; if it lands you in safe mode, open Sileo and uninstall Triggr, then please [report it](../../issues/new/choose). The repo build is arm64 only and refuses to install on A12+. |
 
 By default Triggr never delays or blocks the lock/side button. An optional,
 experimental setting (**Options → Replace Lock Button Actions**) lets an assigned
@@ -116,13 +116,13 @@ open something.
 | Home Button | Single, Double, Triple, Short Hold, Long Hold | Replaces the system press when assigned. If Triple is assigned, a double press waits 0.35 s. |
 | Touch ID | Light Double Tap; Finger Rest, Finger Match (Lock Screen) | Light Double Tap replaces Reachability. iOS doesn't report single taps or holds while unlocked. |
 | Lock Button | Single, Double, Triple, Hold | Observe only by default: the press still locks and nothing is delayed. See **Lock button** below for the experimental replace mode. |
-| Volume Buttons | Up, Down, Up Hold, Down Hold, Up then Down, Down then Up, Press Both, Hold Both | A press replaces the volume step. A hold fires after 0.6 s. Up then Down (and the reverse) are two quick presses that run alongside. For Both, the first button may still move the volume one step. |
+| Volume Buttons | Up, Down, Up Hold, Down Hold, Up then Down, Down then Up, Press Both, Hold Both | A press replaces the volume step. A hold fires after 0.5 s. Up then Down (and the reverse) are two quick presses that run alongside. For Both, the first button may still move the volume one step. |
 | Mute Switch | Silent, Ring, Toggled | Runs alongside |
 | Status Bar | Tap, Double Tap | Home Screen and in apps (apps relay the tap to SpringBoard) |
 | Home Screen Icons | Flick Up, Down, Left, Right | A quick flick that starts on an app or folder icon on the Home Screen or in the Dock. Flick Left / Right take over page swipes that start on an icon, Flick Down takes over the pull for Search. Widgets, the App Library and jiggle mode are left alone. |
 | Motion | Shake Device | Uses iOS's own shake detection (the one behind Shake to Undo): no sensor runs for Triggr. Works while unlocked and awake. |
 | Charger & Headphones | Charger, Headphones connected/disconnected | Observed only while assigned |
-| State Changes | Wi-Fi on/off, joined/left a network, Bluetooth on/off, Low Power on/off, Device Locked/Unlocked, Screen Turned On/Off | Runs after the change. Changes caused by Triggr itself are ignored for 1 s, so assignments can't loop. |
+| State Changes | Wi-Fi on/off, joined/left a network, Bluetooth on/off, Low Power on/off, Device Locked/Unlocked, Screen Turned On/Off | Runs after the change. For 1 s after Triggr changes a state itself (for example toggling Wi-Fi), that kind of change is ignored so assignments can't loop; other changes still run. |
 | Custom Events | A specific Wi-Fi network (joined/left), a specific Bluetooth device (connected/disconnected), battery rises above/drops below X %, an app opened, a scheduled time (every day / weekdays / weekends), a flick on one app's icon (runs instead of the plain flick in that direction) | Wi-Fi and Bluetooth are picked from your saved networks and paired devices. "Drops Below 20" runs at 19 %, "Rises Above 80" at 81 %; "Above 100" means fully charged. |
 
 Devices without a Home button (Face ID) don't see the Home Button or Touch ID
@@ -168,7 +168,7 @@ work like Activator's sleep button:
 
 - An assigned **Single Press** runs instead of locking. With only Single Press
   assigned it runs at once; when Double or Triple Press is assigned too, presses
-  wait about half a second to be counted.
+  wait 0.4 s after the last press to be counted.
 - An assigned **Hold** runs instead of the power-off slider (the Power Off Slider
   action brings it back on another trigger).
 - A count with nothing assigned is handed back to iOS after the wait, so an

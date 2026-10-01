@@ -254,6 +254,15 @@ static id TGShared(const char *className) {
     return [cls respondsToSelector:@selector(sharedInstance)] ? [cls performSelector:@selector(sharedInstance)] : nil;
 }
 
+// SpringBoard's volume and ringer controls: the app object has them on iOS 16
+// (verified on 16.7); on iOS 15 (verified on 15.8) SBMainWorkspace owns them.
+static id TGSpringBoardControl(SEL accessor) {
+    id springBoard = UIApplication.sharedApplication;
+    if ([springBoard respondsToSelector:accessor]) return ((id (*)(id, SEL))objc_msgSend)(springBoard, accessor);
+    id workspace = TGShared("SBMainWorkspace");
+    return [workspace respondsToSelector:accessor] ? ((id (*)(id, SEL))objc_msgSend)(workspace, accessor) : nil;
+}
+
 static BOOL TGCall(id target, SEL sel, BOOL dryRun) {
     if (![target respondsToSelector:sel]) return NO;
     if (!dryRun) ((void (*)(id, SEL))objc_msgSend)(target, sel);
@@ -261,8 +270,19 @@ static BOOL TGCall(id target, SEL sel, BOOL dryRun) {
 }
 
 static BOOL TGVolumeStep(id springBoard, BOOL up, BOOL dryRun) {
-    id volume = [springBoard respondsToSelector:@selector(volumeControl)] ? [springBoard performSelector:@selector(volumeControl)] : TGShared("SBVolumeControl");
+    id volume = TGSpringBoardControl(@selector(volumeControl));
     SEL step = up ? @selector(volumeStepUp) : @selector(volumeStepDown);
+    if (@available(iOS 16, *)) {
+    } else if ([volume respondsToSelector:step] && [volume respondsToSelector:@selector(changeVolumeByDelta:)]) {
+        // iOS 15: volumeStepUp/Down only return the step size (verified on 15.8),
+        // so the step is applied with changeVolumeByDelta:.
+        if (!dryRun) {
+            float delta = fabsf(((float (*)(id, SEL))objc_msgSend)(volume, step));
+            if (delta <= 0 || delta > 0.5f) delta = 1.0f / 16;
+            ((void (*)(id, SEL, float))objc_msgSend)(volume, @selector(changeVolumeByDelta:), up ? delta : -delta);
+        }
+        return YES;
+    }
     if ([volume respondsToSelector:step]) {
         if (!dryRun) ((void (*)(id, SEL))objc_msgSend)(volume, step);
         return YES;
@@ -292,7 +312,6 @@ typedef struct {
 } TGBlueLightStatus;
 
 static BOOL TGSwitchFor(NSString *name, TGSwitch *out) {
-    id springBoard = UIApplication.sharedApplication;
     if ([name isEqualToString:@"flashlight"]) {
         AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
         if (!device.hasTorch) return NO;
@@ -338,7 +357,10 @@ static BOOL TGSwitchFor(NSString *name, TGSwitch *out) {
         if (![lowPower respondsToSelector:sel]) return NO;
         out->get = ^BOOL { return NSProcessInfo.processInfo.isLowPowerModeEnabled; };
         out->set = ^(BOOL on) {
-            void *symbol = dlsym(RTLD_DEFAULT, "kPMLPMSourceControlCenter");
+            // As Settings: from Control Center, iOS shows a one-time "Low Power Mode"
+            // explanation alert that then sits on screen (seen on iOS 15.8).
+            void *symbol = dlsym(RTLD_DEFAULT, "kPMLPMSourceSettings");
+            if (!symbol) symbol = dlsym(RTLD_DEFAULT, "kPMLPMSourceControlCenter");
             NSString *source = symbol ? (__bridge NSString *)*(void **)symbol : @"ControlCenter";
             ((void (*)(id, SEL, long long, id, id))objc_msgSend)(lowPower, sel, on ? 1 : 0, source, ^(BOOL ok, NSError *error) {
             });
@@ -451,7 +473,7 @@ static BOOL TGSwitchFor(NSString *name, TGSwitch *out) {
     }
     if ([name isEqualToString:@"mute"]) {
         // setRingerMuted: (verified); toggleRingerMute does nothing on a phone with a mute switch.
-        id ringer = [springBoard respondsToSelector:@selector(ringerControl)] ? [springBoard performSelector:@selector(ringerControl)] : nil;
+        id ringer = TGSpringBoardControl(@selector(ringerControl));
         if (![ringer respondsToSelector:@selector(isRingerMuted)] || ![ringer respondsToSelector:@selector(setRingerMuted:)]) return NO;
         out->get = ^BOOL { return ((BOOL (*)(id, SEL))objc_msgSend)(ringer, @selector(isRingerMuted)); };
         out->set = ^(BOOL on) { ((void (*)(id, SEL, BOOL))objc_msgSend)(ringer, @selector(setRingerMuted:), on); };
@@ -513,6 +535,31 @@ static BOOL TGShutdown(BOOL restart, BOOL dryRun) {
     return YES;
 }
 
+// Sleep: lock and turn the screen off, as a lock button press does
+// (SpringBoard's simulated lock press).
+// iOS 15 keeps the SOS gesture "active" for about a second after quick lock
+// presses and won't sleep meanwhile, so Triple Press -> Sleep did nothing
+// (verified on iOS 15.8). There, an active SOS gesture is ended first and the
+// lock button's own sleep runs. Real SOS isn't affected: Triggr never acts on
+// four or more presses, so those stay iOS's. iOS 16 is unchanged (verified on 16.7).
+static BOOL TGSleep(BOOL dry) {
+    id springBoard = UIApplication.sharedApplication;
+    if (dry) return [springBoard respondsToSelector:@selector(_simulateLockButtonPress)];
+    if (@available(iOS 16, *)) {
+    } else {
+        id button = [springBoard respondsToSelector:@selector(lockHardwareButton)] ? [springBoard performSelector:@selector(lockHardwareButton)] : nil;
+        id actions = [button respondsToSelector:@selector(buttonActions)] ? [button performSelector:@selector(buttonActions)] : nil;
+        id interaction = [actions respondsToSelector:@selector(sleepWakeButtonInteraction)] ? [actions performSelector:@selector(sleepWakeButtonInteraction)] : nil;
+        if ([interaction respondsToSelector:@selector(isSOSGestureActive)] && [interaction respondsToSelector:@selector(setSOSGestureActive:)]
+            && [interaction respondsToSelector:@selector(_performSleep)] && ((BOOL (*)(id, SEL))objc_msgSend)(interaction, @selector(isSOSGestureActive))) {
+            ((void (*)(id, SEL, BOOL))objc_msgSend)(interaction, @selector(setSOSGestureActive:), NO);
+            ((void (*)(id, SEL))objc_msgSend)(interaction, @selector(_performSleep));
+            return YES;
+        }
+    }
+    return TGCall(springBoard, @selector(_simulateLockButtonPress), NO);
+}
+
 static NSDictionary<NSString *, TGActionBlock> *TGActionTable(void) {
     static NSDictionary *table;
     static dispatch_once_t once;
@@ -567,7 +614,7 @@ static NSDictionary<NSString *, TGActionBlock> *TGActionTable(void) {
             // the lock sound and haptic), which Lock Device alone doesn't do. SpringBoard's
             // own simulated press (private, guarded); verified on iOS 16.7 that it skips
             // -[SBLockHardwareButton singlePress:], so a replaced lock button can't loop.
-            @"system.sleep": ^BOOL(BOOL dry) { return TGCall(springBoard, @selector(_simulateLockButtonPress), dry); },
+            @"system.sleep": ^BOOL(BOOL dry) { return TGSleep(dry); },
             // The slide-to-power-off screen (private, guarded).
             @"system.powerdown": ^BOOL(BOOL dry) { return TGCall(TGShared("SBMainWorkspace"), @selector(presentPowerDownTransientOverlay), dry); },
             // FrontBoard's shutdown (private, guarded): YES restarts, NO powers off.
@@ -709,8 +756,39 @@ static void TGPerform(NSString *action) {
     });
 }
 
-// Run the action for `trigger` if there is one; YES when something ran.
-static CFTimeInterval tgLastPerformAt;
+// State changes an action can cause, so its own effects don't fire triggers
+// (no loops) while unrelated changes still do. Families: "wifi", "bluetooth",
+// "lowpower", "lock" (device locked/unlocked) and "display" (screen on/off).
+static CFTimeInterval tgCausedAt[5];
+static int TGStateFamily(NSString *trigger) {
+    if ([trigger hasPrefix:@"wifi."]) return 0;
+    if ([trigger hasPrefix:@"bluetooth."]) return 1;
+    if ([trigger hasPrefix:@"lowpower."]) return 2;
+    if ([trigger hasPrefix:@"device."]) return 3;
+    if ([trigger hasPrefix:@"display."]) return 4;
+    return -1;
+}
+
+static void TGNoteCausedStates(NSString *action) {
+    CFTimeInterval now = CACurrentMediaTime();
+    NSArray<NSNumber *> *families = nil;
+    NSRange dot = [action rangeOfString:@"."];
+    NSString *verb = dot.location == NSNotFound ? nil : [action substringToIndex:dot.location];
+    NSString *name = dot.location == NSNotFound ? nil : [action substringFromIndex:dot.location + 1];
+    if ([verb isEqualToString:@"toggle"] || [verb isEqualToString:@"on"] || [verb isEqualToString:@"off"]) {
+        if ([name isEqualToString:@"wifi"]) families = @[@0];
+        else if ([name isEqualToString:@"bluetooth"]) families = @[@1];
+        else if ([name isEqualToString:@"airplane"]) families = @[@0, @1];
+        else if ([name isEqualToString:@"lowpower"]) families = @[@2];
+    } else if ([action isEqualToString:@"system.lock"] || [action isEqualToString:@"system.home"]) {
+        families = @[@3];
+    } else if ([action isEqualToString:@"system.sleep"] || [action isEqualToString:@"system.respring"] || [action isEqualToString:@"system.safemode"]) {
+        families = @[@3, @4];
+    } else if ([action hasPrefix:TGShellPrefix] || [action hasPrefix:TGShortcutPrefix]) {
+        families = @[@0, @1, @2, @3, @4]; // can change anything
+    }
+    for (NSNumber *family in families) tgCausedAt[family.intValue] = now;
+}
 
 // Runs a list in order; "pause:<s>" waits before the next action.
 static void TGRunList(NSArray<NSString *> *actions, NSUInteger index) {
@@ -722,7 +800,7 @@ static void TGRunList(NSArray<NSString *> *actions, NSUInteger index) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ TGRunList(actions, next); });
             return;
         }
-        tgLastPerformAt = CACurrentMediaTime();
+        TGNoteCausedStates(action);
         TGPerform(action); // queued in order on the main queue
     }
 }
@@ -914,6 +992,8 @@ static void TGUpdateAPI(void) {
 #pragma mark - Home button (replaces the system action when assigned)
 
 static const CFTimeInterval TGMultiPressWindow = 0.35;
+// Status bar double tap window (0.3 split some real double taps).
+static const CFTimeInterval TGTapWindow = 0.35;
 static const CFTimeInterval TGShortHoldMinimum = 0.35;
 
 static CFTimeInterval tgHomeDownAt;
@@ -984,7 +1064,7 @@ static NSUInteger tgHomeGeneration;
 
 #pragma mark - Volume buttons (an assigned press replaces the volume change)
 
-static const CFTimeInterval TGHoldDelay = 0.6;
+static const CFTimeInterval TGHoldDelay = 0.5; // iOS's own long press
 
 typedef struct {
     BOOL down;
@@ -1119,6 +1199,10 @@ static BOOL TGVolumeEnded(int which) {
 // Verified on iOS 16.7: a press is performInitialButtonDownActions (which wakes
 // a dark screen) and then singlePress:, whose own work is what locks.
 
+// How long after a lock press another one still counts towards a double /
+// triple, and so how long a press waits when Double or Triple is assigned.
+// Real quick presses on an iPhone 7 came 216-313 ms apart.
+static const CFTimeInterval TGLockPressWindow = 0.4;
 static NSUInteger tgLockPresses;
 static CFTimeInterval tgLockLastPress;
 static NSUInteger tgLockGeneration;
@@ -1160,10 +1244,10 @@ static BOOL TGLockPressInUse(void) {
         %orig;
     };
     CFTimeInterval now = CACurrentMediaTime();
-    tgLockPresses = (now - tgLockLastPress < TGMultiPressWindow + 0.15) ? tgLockPresses + 1 : 1;
+    tgLockPresses = (now - tgLockLastPress < TGLockPressWindow) ? tgLockPresses + 1 : 1;
     tgLockLastPress = now;
     NSUInteger generation = ++tgLockGeneration;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((TGMultiPressWindow + 0.15) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(TGLockPressWindow * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (generation != tgLockGeneration) return;
         NSUInteger count = tgLockPresses;
         tgLockPresses = 0;
@@ -1240,7 +1324,7 @@ static BOOL TGStatusBarInUse(void) {
 static void TGStatusBarTapped(void) {
     if (!TGStatusBarInUse()) return;
     CFTimeInterval now = CACurrentMediaTime();
-    if (tgStatusBarPendingSingle && now - tgStatusBarLastTap < TGMultiPressWindow) {
+    if (tgStatusBarPendingSingle && now - tgStatusBarLastTap < TGTapWindow) {
         tgStatusBarPendingSingle = NO;
         tgStatusBarGeneration++; // cancel the pending single tap
         TGFire(@"statusbar.doubletap");
@@ -1253,7 +1337,7 @@ static void TGStatusBarTapped(void) {
     }
     tgStatusBarPendingSingle = YES;
     NSUInteger generation = ++tgStatusBarGeneration;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(TGMultiPressWindow * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(TGTapWindow * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (generation != tgStatusBarGeneration || !tgStatusBarPendingSingle) return;
         tgStatusBarPendingSingle = NO;
         TGFire(@"statusbar.tap");
@@ -1436,7 +1520,8 @@ static BOOL TGAssignedAny(NSString *a, NSString *b) {
 static void TGStateChanged(BOOL *previous, BOOL now, NSString *onTrigger, NSString *offTrigger) {
     if (now == *previous) return;
     *previous = now;
-    if (CACurrentMediaTime() - tgLastPerformAt < 1.0) {
+    int family = TGStateFamily(onTrigger);
+    if (family >= 0 && CACurrentMediaTime() - tgCausedAt[family] < 1.0) {
         return;
     }
     TGFire(now ? onTrigger : offTrigger);
