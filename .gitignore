@@ -1,0 +1,16 @@
+# Theos build output
+.theos/
+packages/
+obj/
+build/
+*.deb
+
+# Editors and OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local environment
+.env
+.env.*
+*.local
