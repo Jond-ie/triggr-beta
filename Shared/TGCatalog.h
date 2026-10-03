@@ -47,7 +47,7 @@ static const TGItem TGVolume[] = {
     {"volume.both", "Press Both"}, {"volume.bothhold", "Hold Both"},
 };
 static const TGItem TGMuteSwitch[] = { {"mute.silent", "Switched to Silent"}, {"mute.ring", "Switched to Ring"}, {"mute.toggle", "Toggled"} };
-static const TGItem TGStatusBar[] = { {"statusbar.tap", "Tap"}, {"statusbar.doubletap", "Double Tap"} };
+static const TGItem TGStatusBar[] = { {"statusbar.tap", "Tap"}, {"statusbar.doubletap", "Double Tap"}, {"statusbar.hold", "Hold"} };
 // Shake rides on iOS's own shake detection, so no sensor runs for Triggr.
 static const TGItem TGMotion[] = { {"motion.shake", "Shake Device"} };
 // A quick flick that starts on a Home Screen icon (see TGFlickRecognizer).
@@ -76,7 +76,7 @@ static const TGGroup TGTriggerGroups[] = {
     {"Lock Button", TGLockButton, TG_COUNT(TGLockButton), NULL},
     {"Volume Buttons", TGVolume, TG_COUNT(TGVolume), "Up, then Down (and the reverse) are two quick presses; they always run alongside, and the volume ends where it started."},
     {"Mute Switch", TGMuteSwitch, TG_COUNT(TGMuteSwitch), "With Replace on, the switch's position and the ringer can differ until you flip it back."},
-    {"Status Bar", TGStatusBar, TG_COUNT(TGStatusBar), "Works on the Home Screen, Lock Screen and inside apps. A single tap still scrolls to the top."},
+    {"Status Bar", TGStatusBar, TG_COUNT(TGStatusBar), "Works on the Home Screen, Lock Screen and inside apps. A single tap still scrolls to the top. Hold is half a second."},
     {"Home Screen Icons", TGIcons, TG_COUNT(TGIcons), "A quick flick that starts on an app or folder icon on the Home Screen or in the Dock. Widgets, the App Library and jiggle mode are left alone. Flick Left and Flick Right take over page swipes that start on an icon."},
     {"Motion", TGMotion, TG_COUNT(TGMotion), "Uses iOS's own shake detection (the one behind Shake to Undo), so it costs no battery. Works while the phone is unlocked and awake; Shake to Undo still appears where an app offers it."},
     {"Charger & Headphones", TGOther, TG_COUNT(TGOther), "Taking an AirPod out can count as Headphones Disconnected, because iOS moves the sound to the speaker."},
@@ -88,6 +88,7 @@ static const TGItem TGSystemActions[] = {
     {"system.lastapp", "Last App"}, {"system.quitapp", "Quit Current App"},
     {"system.cc", "Control Center"}, {"system.nc", "Notification Center"}, {"system.spotlight", "Spotlight"},
     {"system.reachability", "Reachability"}, {"system.siri", "Siri"}, {"system.screenshot", "Take Screenshot"},
+    {"system.screenrecord", "Screen Recording"}, {"system.closeapps", "Close Background Apps"},
     {"system.vibrate", "Vibrate"}, {"system.nothing", "Do Nothing"},
 };
 static const TGItem TGPowerActions[] = {
@@ -112,6 +113,7 @@ static const TGItem TGOffActions[] = { TG_SWITCHES(TG_SWITCH_OFF) };
 static const TGItem TGMediaActions[] = {
     {"media.playpause", "Play / Pause"}, {"media.next", "Next Track"}, {"media.previous", "Previous Track"},
     {"media.volup", "Volume Up"}, {"media.voldown", "Volume Down"},
+    {"media.airplay", "AirPlay Picker"}, {"media.airplayiphone", "Play on iPhone"},
 };
 
 static const TGGroup TGActionGroups[] = {
@@ -152,6 +154,12 @@ static const TGGroup TGActionGroups[] = {
 #define TGMessagePrefix @"message:"
 #define TGSpeakPrefix @"speak:"
 #define TGSettingsPrefix @"settings:" // App-prefs page id
+#define TGAirPlayPrefix @"airplay:"   // AirPlay device name (or part of it)
+// Settings can't discover AirPlay devices itself: it asks SpringBoard, which
+// writes the names it sees to this file and answers with the second notification.
+#define TGAirPlayListRequest "com.johndie.triggr/airplay-list"
+#define TGAirPlayListReady "com.johndie.triggr/airplay-list-ready"
+#define TGAirPlayListPath @"/var/jb/var/mobile/Library/Preferences/com.johndie.triggr.airplay.plist"
 
 // Settings pages for "Open Settings Page" (App-prefs:<id>, verified to open Settings on iOS 16.7).
 static const TGItem TGSettingsPages[] = {
@@ -360,6 +368,7 @@ static inline NSString *TGActionTitle(NSString *action) {
     if ([action hasPrefix:TGRingerVolumePrefix]) return [NSString stringWithFormat:@"Ringer Volume %@%%", [action substringFromIndex:TGRingerVolumePrefix.length]];
     if ([action hasPrefix:TGMessagePrefix]) return [@"Message: " stringByAppendingString:[action substringFromIndex:TGMessagePrefix.length]];
     if ([action hasPrefix:TGSpeakPrefix]) return [@"Say: " stringByAppendingString:[action substringFromIndex:TGSpeakPrefix.length]];
+    if ([action hasPrefix:TGAirPlayPrefix]) return [@"AirPlay to " stringByAppendingString:[action substringFromIndex:TGAirPlayPrefix.length]];
     if ([action hasPrefix:TGSettingsPrefix]) {
         NSString *page = [action substringFromIndex:TGSettingsPrefix.length];
         for (int i = 0; i < TG_COUNT(TGSettingsPages); i++)

@@ -149,6 +149,7 @@ extern SInt32 CFUserNotificationDisplayNotice(CFTimeInterval timeout, CFOptionFl
     CFStringRef alertHeader, CFStringRef alertMessage, CFStringRef defaultButtonTitle);
 
 static id TGShared(const char *className);
+static BOOL TGAirPlayTo(NSString *name, BOOL dry);
 
 static double TGPercent(NSString *action, NSString *prefix) {
     return MIN(MAX([[action substringFromIndex:prefix.length] doubleValue], 0), 100) / 100.0;
@@ -203,6 +204,10 @@ static BOOL TGValueAction(NSString *action, BOOL dryRun) {
     if ([action hasPrefix:TGSpeakPrefix]) {
         if (!dryRun) TGSpeak([action substringFromIndex:TGSpeakPrefix.length]);
         return YES;
+    }
+    if ([action hasPrefix:TGAirPlayPrefix]) {
+        NSString *name = [action substringFromIndex:TGAirPlayPrefix.length];
+        return name.length && TGAirPlayTo(name, dryRun);
     }
     if ([action hasPrefix:TGSettingsPrefix]) {
         // "prefs:" no longer opens from SpringBoard on iOS 16; "App-prefs:" does (verified).
@@ -570,6 +575,133 @@ static BOOL TGSleep(BOOL dry) {
     return TGCall(springBoard, @selector(_simulateLockButtonPress), NO);
 }
 
+// Screen Recording: ReplayKit's system recording, as Control Center's button
+// (no microphone). Private methods, checked at runtime (seen on iOS 15.8).
+static BOOL TGScreenRecord(BOOL dry) {
+    Class cls = objc_getClass("RPScreenRecorder");
+    if (!cls) { dlopen("/System/Library/Frameworks/ReplayKit.framework/ReplayKit", RTLD_NOW); cls = objc_getClass("RPScreenRecorder"); }
+    id recorder = [cls respondsToSelector:@selector(sharedRecorder)] ? [cls performSelector:@selector(sharedRecorder)] : nil;
+    SEL start = @selector(startSystemRecordingWithMicrophoneEnabled:handler:), stop = @selector(stopSystemRecording:);
+    if (![recorder respondsToSelector:start] || ![recorder respondsToSelector:stop] || ![recorder respondsToSelector:@selector(systemRecording)]) return NO;
+    if (dry) return YES;
+    BOOL recording = ((BOOL (*)(id, SEL))objc_msgSend)(recorder, @selector(systemRecording));
+    if (recording) ((void (*)(id, SEL, id))objc_msgSend)(recorder, stop, ^(id error) { });
+    else ((void (*)(id, SEL, BOOL, id))objc_msgSend)(recorder, start, NO, ^(id error) { });
+    return YES;
+}
+
+// Close Background Apps: every app in the App Switcher except the one in use
+// and the one playing audio, removed the way swiping its card up does.
+static BOOL TGCloseBackgroundApps(BOOL dry) {
+    id switcher = TGShared("SBMainSwitcherViewController");
+    SEL remove = @selector(_deleteAppLayoutsMatchingBundleIdentifier:);
+    if (![switcher respondsToSelector:remove] || ![switcher respondsToSelector:@selector(recentAppLayouts)]) return NO;
+    if (dry) return YES;
+    NSMutableSet *keep = [NSMutableSet set];
+    NSString *front = TGFrontAppIdentifier();
+    if (front) [keep addObject:front];
+    id media = TGShared("SBMediaController");
+    id playing = [media respondsToSelector:@selector(nowPlayingApplication)] ? [media performSelector:@selector(nowPlayingApplication)] : nil;
+    NSString *playingID = [playing respondsToSelector:@selector(bundleIdentifier)] ? [playing performSelector:@selector(bundleIdentifier)] : nil;
+    if (playingID) [keep addObject:playingID];
+    NSMutableOrderedSet *apps = [NSMutableOrderedSet orderedSet];
+    for (id layout in [switcher performSelector:@selector(recentAppLayouts)]) {
+        id items = [layout respondsToSelector:@selector(allItems)] ? [layout performSelector:@selector(allItems)] : nil;
+        for (id item in items) {
+            NSString *bundle = [item respondsToSelector:@selector(bundleIdentifier)] ? [item performSelector:@selector(bundleIdentifier)] : nil;
+            if (bundle && ![keep containsObject:bundle]) [apps addObject:bundle];
+        }
+    }
+    for (NSString *bundle in apps) ((void (*)(id, SEL, id))objc_msgSend)(switcher, remove, bundle);
+    return YES;
+}
+
+// AirPlay: the system's own output picker (what AVRoutePickerView shows), and
+// MediaPlayer's routing controller to send audio to a named device or back to
+// the iPhone. Private, checked at runtime (seen on iOS 15.8).
+static BOOL TGAirPlayPicker(BOOL dry) {
+    static id controls; // kept while it's on screen
+    Class cls = objc_getClass("MPMediaControls");
+    if (![cls instancesRespondToSelector:@selector(present)]) return NO;
+    if (dry) return YES;
+    controls = [cls new];
+    ((void (*)(id, SEL))objc_msgSend)(controls, @selector(present));
+    return YES;
+}
+
+static id TGRoutingController(void) {
+    Class cls = objc_getClass("MPAVRoutingController");
+    if (![cls instancesRespondToSelector:@selector(fetchAvailableRoutesWithCompletionHandler:)] || ![cls instancesRespondToSelector:@selector(pickRoute:)]) return nil;
+    id controller = [cls new];
+    if ([controller respondsToSelector:@selector(setDiscoveryMode:)]) ((void (*)(id, SEL, long long))objc_msgSend)(controller, @selector(setDiscoveryMode:), 3); // detailed
+    return controller;
+}
+
+// Looks for a matching route for a few seconds (speakers take a moment to be
+// discovered), then picks it. name nil = this iPhone (or its headphones).
+static BOOL TGAirPlayTo(NSString *name, BOOL dry) {
+    if (!objc_getClass("MPAVRoutingController")) return NO;
+    if (dry) return YES;
+    id controller = TGRoutingController();
+    if (!controller) return NO;
+    __block int attempts = 0;
+    __block void (^attempt)(void);
+    void (^tryOnce)(void) = ^{
+        ((void (*)(id, SEL, id))objc_msgSend)(controller, @selector(fetchAvailableRoutesWithCompletionHandler:), ^(NSArray *routes) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                id match = nil;
+                for (id route in routes) {
+                    NSString *routeName = [route respondsToSelector:@selector(routeName)] ? [route performSelector:@selector(routeName)] : nil;
+                    BOOL device = [route respondsToSelector:@selector(isDeviceRoute)] && ((BOOL (*)(id, SEL))objc_msgSend)(route, @selector(isDeviceRoute));
+                    if (name ? [routeName localizedCaseInsensitiveContainsString:name] : device) { match = route; break; }
+                }
+                if (match) {
+                    BOOL ok = ((BOOL (*)(id, SEL, id))objc_msgSend)(controller, @selector(pickRoute:), match);
+                    (void)ok;
+                    attempt = nil;
+                } else if (++attempts < 10) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ if (attempt) attempt(); });
+                } else {
+                    attempt = nil;
+                }
+            });
+        });
+    };
+    attempt = tryOnce;
+    attempt();
+    return YES;
+}
+
+// For Settings' AirPlay To list: the speaker and TV names SpringBoard can see
+// (network devices take a moment to be discovered: up to ~3 s).
+static void TGWriteAirPlayList(void) {
+    id controller = TGRoutingController();
+    if (!controller) { notify_post(TGAirPlayListReady); return; }
+    __block int attempts = 0;
+    __block void (^fetch)(void);
+    fetch = ^{
+        ((void (*)(id, SEL, id))objc_msgSend)(controller, @selector(fetchAvailableRoutesWithCompletionHandler:), ^(NSArray *routes) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSMutableOrderedSet *names = [NSMutableOrderedSet orderedSet];
+                for (id route in routes) {
+                    BOOL device = [route respondsToSelector:@selector(isDeviceRoute)] && ((BOOL (*)(id, SEL))objc_msgSend)(route, @selector(isDeviceRoute));
+                    NSString *name = [route respondsToSelector:@selector(routeName)] ? [route performSelector:@selector(routeName)] : nil;
+                    if (!device && name.length) [names addObject:name];
+                }
+                if (!names.count && ++attempts < 6) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ if (fetch) fetch(); });
+                    return;
+                }
+                fetch = nil;
+                (void)controller;
+                [names.array writeToFile:TGAirPlayListPath atomically:YES];
+                notify_post(TGAirPlayListReady);
+            });
+        });
+    };
+    fetch();
+}
+
 static NSDictionary<NSString *, TGActionBlock> *TGActionTable(void) {
     static NSDictionary *table;
     static dispatch_once_t once;
@@ -697,6 +829,10 @@ static NSDictionary<NSString *, TGActionBlock> *TGActionTable(void) {
             // One notch per action. increaseVolume/decreaseVolume are press-and-hold
             // calls that keep repeating until cancelVolumeEvent (verified the hard way),
             // so prefer the single-step methods and always cancel after the fallback.
+            @"media.airplay": ^BOOL(BOOL dry) { return TGAirPlayPicker(dry); },
+            @"media.airplayiphone": ^BOOL(BOOL dry) { return TGAirPlayTo(nil, dry); },
+            @"system.screenrecord": ^BOOL(BOOL dry) { return TGScreenRecord(dry); },
+            @"system.closeapps": ^BOOL(BOOL dry) { return TGCloseBackgroundApps(dry); },
             @"media.volup": ^BOOL(BOOL dry) { return TGVolumeStep(springBoard, YES, dry); },
             @"media.voldown": ^BOOL(BOOL dry) { return TGVolumeStep(springBoard, NO, dry); },
         };
@@ -1420,9 +1556,30 @@ static BOOL TGStatusBarInUse(void) {
     return [tgAssignedTriggers containsObject:@"statusbar.tap"] || [tgAssignedTriggers containsObject:@"statusbar.doubletap"];
 }
 
+// Hold: iOS reports a held status bar as a plain tap when it's let go (in apps
+// too: the action's type is the same), so SpringBoard times the touch itself.
+// After a hold has run, the tap that follows is the same touch and is dropped.
+static const CFTimeInterval TGStatusBarHoldTime = 0.5;
+static BOOL tgStatusBarHeld;
+static CFTimeInterval tgStatusBarHoldEndedAt;
+
+static void TGStatusBarHoldBegan(void) {
+    if (![tgAssignedTriggers containsObject:@"statusbar.hold"]) return;
+    tgStatusBarHeld = YES;
+    TGFire(@"statusbar.hold");
+}
+
+static void TGStatusBarHoldEnded(void) {
+    if (!tgStatusBarHeld) return;
+    tgStatusBarHeld = NO;
+    tgStatusBarHoldEndedAt = CACurrentMediaTime();
+}
+
 static void TGStatusBarTapped(void) {
-    if (!TGStatusBarInUse()) return;
     CFTimeInterval now = CACurrentMediaTime();
+    // The release of a hold that already ran (the app's report comes a moment later).
+    if (tgStatusBarHeld || now - tgStatusBarHoldEndedAt < 0.6) { tgStatusBarHoldEndedAt = 0; tgStatusBarHeld = NO; return; }
+    if (!TGStatusBarInUse()) return;
     if (tgStatusBarPendingSingle && now - tgStatusBarLastTap < TGTapWindow) {
         tgStatusBarPendingSingle = NO;
         tgStatusBarGeneration++; // cancel the pending single tap
@@ -1443,9 +1600,35 @@ static void TGStatusBarTapped(void) {
     });
 }
 
+@interface TGStatusBarHoldTarget : NSObject
+@end
+@implementation TGStatusBarHoldTarget
++ (void)held:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state == UIGestureRecognizerStateBegan) TGStatusBarHoldBegan();
+    else if (recognizer.state == UIGestureRecognizerStateEnded || recognizer.state == UIGestureRecognizerStateCancelled) TGStatusBarHoldEnded();
+}
+@end
+
+// Every status bar SpringBoard draws (Home Screen, Lock Screen, and the ones
+// over apps, which live in the switcher's window) gets one hold recognizer.
+static const void *TGHoldRecognizerKey = &TGHoldRecognizerKey;
+%hook UIStatusBar_Modern
+- (void)didMoveToWindow {
+    %orig;
+    UIView *bar = (UIView *)self;
+    if (!bar.window || objc_getAssociatedObject(bar, TGHoldRecognizerKey)) return;
+    UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:TGStatusBarHoldTarget.class action:@selector(held:)];
+    hold.minimumPressDuration = TGStatusBarHoldTime;
+    hold.cancelsTouchesInView = NO; // taps go on to iOS as before
+    [bar addGestureRecognizer:hold];
+    objc_setAssociatedObject(bar, TGHoldRecognizerKey, hold, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+%end
 %hook UIStatusBarWindow
 - (void)sendEvent:(UIEvent *)event {
-    if (event.type == UIEventTypeTouches && TGStatusBarInUse() && event.allTouches.anyObject.phase == UITouchPhaseEnded) TGStatusBarTapped();
+    if (event.type == UIEventTypeTouches && TGStatusBarInUse() && event.allTouches.anyObject.phase == UITouchPhaseEnded) {
+        TGStatusBarTapped();
+    }
     %orig;
 }
 %end
@@ -1941,7 +2124,11 @@ static void TGUpdateOtherEvents(void) {
     int token;
     notify_register_dispatch(TGPrefsChangedNotification, &token, dispatch_get_main_queue(), ^(int t) { TGReadAssignments(); });
     int tapToken;
-    notify_register_dispatch(TGRelayStatusBarTap, &tapToken, dispatch_get_main_queue(), ^(int t) { TGStatusBarTapped(); });
+    int airPlayListToken;
+    notify_register_dispatch(TGAirPlayListRequest, &airPlayListToken, dispatch_get_main_queue(), ^(int t) { TGWriteAirPlayList(); });
+    notify_register_dispatch(TGRelayStatusBarTap, &tapToken, dispatch_get_main_queue(), ^(int t) {
+        TGStatusBarTapped();
+    });
     int shakeToken;
     notify_register_dispatch(TGRelayShake, &shakeToken, dispatch_get_main_queue(), ^(int t) { TGShaken(); });
     %init(_ungrouped);

@@ -5,6 +5,7 @@
 
 #import <UIKit/UIKit.h>
 #import <notify.h>
+#import <objc/message.h>
 #import "../Shared/TGRelay.h"
 
 static void TGRelay(const char *name, uint64_t wantedBit) {

@@ -536,7 +536,7 @@ static NSString *TGCategoryOf(NSString *action) {
     for (NSString *prefix in @[TGAppPrefix, TGSettingsPrefix, TGShortcutPrefix, TGURLPrefix]) if ([action hasPrefix:prefix]) return @"open";
     for (NSString *prefix in @[TGMessagePrefix, TGSpeakPrefix, TGShellPrefix]) if ([action hasPrefix:prefix]) return @"text";
     for (NSString *prefix in @[@"toggle.", @"on.", @"off."]) if ([action hasPrefix:prefix]) return @"switches";
-    if ([action hasPrefix:@"media."]) return @"media";
+    if ([action hasPrefix:@"media."] || [action hasPrefix:TGAirPlayPrefix]) return @"media";
     for (int i = 0; i < TG_COUNT(TGPowerActions); i++) if ([action isEqualToString:@(TGPowerActions[i].identifier)]) return @"power";
     if ([action hasPrefix:@"system."]) return @"system";
     return nil;
@@ -646,6 +646,8 @@ static NSString *TGCategoryOf(NSString *action) {
     else if ([category isEqualToString:@"power"]) { items = TGPowerActions; count = TG_COUNT(TGPowerActions); }
     else if ([category isEqualToString:@"media"]) { items = TGMediaActions; count = TG_COUNT(TGMediaActions); }
     for (int i = 0; i < count; i++) [rows addObject:[self rowForAction:@(items[i].identifier) title:@(items[i].title)]];
+    if ([category isEqualToString:@"media"])
+        [rows addObject:[self rowForCommand:TGAirPlayPrefix title:@"AirPlay To…" prompt:@"Speaker or TV name, as it appears in the AirPlay menu (part of it is enough)"]];
     if ([category isEqualToString:@"switches"]) {
         for (int i = 0; i < TG_COUNT(TGSwitches); i++) {
             PSSpecifier *spec = [PSSpecifier preferenceSpecifierNamed:@(TGSwitches[i].title) target:self set:nil get:nil detail:nil cell:PSListItemCell edit:nil];
@@ -930,6 +932,45 @@ static NSString *TGCategoryOf(NSString *action) {
     [self presentSheet:sheet fromRowAtIndexPath:indexPath];
 }
 
+// AirPlay To: the speakers and TVs iOS can see right now (found the way the
+// AirPlay menu finds them), or any name typed in.
+- (void)pickAirPlayDeviceAtIndexPath:(NSIndexPath *)indexPath specifier:(PSSpecifier *)spec existing:(NSString *)existingItem {
+    __block BOOL shown = NO;
+    __block int token = -1;
+    __weak typeof(self) weakSelf = self;
+    void (^show)(void) = ^{
+        if (shown) return;
+        shown = YES;
+        if (token != -1) notify_cancel(token);
+        typeof(self) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        NSArray *names = [NSArray arrayWithContentsOfFile:TGAirPlayListPath];
+        UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"AirPlay To" message:names.count ? nil : @"No speakers or TVs found right now. You can still type a name." preferredStyle:UIAlertControllerStyleActionSheet];
+        for (NSString *name in names) {
+            if (![name isKindOfClass:NSString.class]) continue;
+            [sheet addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+                [weakSelf setItem:[TGAirPlayPrefix stringByAppendingString:name] forPrefix:TGAirPlayPrefix];
+            }]];
+        }
+        [sheet addAction:[UIAlertAction actionWithTitle:@"Type a Name…" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+            [weakSelf promptForCommand:spec prefix:TGAirPlayPrefix existing:existingItem];
+        }]];
+        if (existingItem) {
+            [sheet addAction:[UIAlertAction actionWithTitle:@"Remove" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a) {
+                [weakSelf setItem:nil forPrefix:TGAirPlayPrefix];
+            }]];
+        }
+        [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+        [strongSelf presentSheet:sheet fromRowAtIndexPath:indexPath];
+    };
+    // SpringBoard looks (Settings can't discover network devices itself) and
+    // answers within ~3 s; show whatever is there after 4 s at the latest.
+    [NSFileManager.defaultManager removeItemAtPath:TGAirPlayListPath error:nil];
+    notify_register_dispatch(TGAirPlayListReady, &token, dispatch_get_main_queue(), ^(int t) { show(); });
+    notify_post(TGAirPlayListRequest);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4 * NSEC_PER_SEC)), dispatch_get_main_queue(), show);
+}
+
 - (void)pickSettingsPageAtIndexPath:(NSIndexPath *)indexPath existing:(NSString *)existingItem {
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Open Settings Page" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
     for (int i = 0; i < TG_COUNT(TGSettingsPages); i++) {
@@ -1025,6 +1066,15 @@ static NSString *TGCategoryOf(NSString *action) {
         [self pickSettingsPageAtIndexPath:indexPath existing:existingItem];
         return;
     }
+    if ([prefix isEqualToString:TGAirPlayPrefix]) {
+        [self pickAirPlayDeviceAtIndexPath:indexPath specifier:spec existing:existingItem];
+        return;
+    }
+    [self promptForCommand:spec prefix:prefix existing:existingItem];
+}
+
+// A text (or number) for a command action, in an alert.
+- (void)promptForCommand:(PSSpecifier *)spec prefix:(NSString *)prefix existing:(NSString *)existingItem {
     BOOL percent = [prefix isEqualToString:TGBrightnessPrefix] || [prefix isEqualToString:TGMediaVolumePrefix] || [prefix isEqualToString:TGRingerVolumePrefix];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:[spec.name stringByReplacingOccurrencesOfString:@"…" withString:@""] message:[spec propertyForKey:@"tgPrompt"] preferredStyle:UIAlertControllerStyleAlert];
     NSString *existing = existingItem ? [existingItem substringFromIndex:prefix.length] : @"";

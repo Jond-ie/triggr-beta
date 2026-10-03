@@ -118,7 +118,7 @@ open something.
 | Lock Button | Single, Double, Triple, Hold | An assigned Single Press or Hold replaces locking or the power-off slider. See **Lock button** below. |
 | Volume Buttons | Up, Down, Up Hold, Down Hold, Up then Down, Down then Up, Press Both, Hold Both | A press replaces the volume step. A hold fires after 0.5 s. Up then Down (and the reverse) are two quick presses that run alongside. For Both, the first button may still move the volume one step. |
 | Mute Switch | Silent, Ring, Toggled | Replaces muting / unmuting when assigned (see **Replace Button Actions**); the switch's position and the ringer can then differ until it's flipped back. |
-| Status Bar | Tap, Double Tap | Home Screen and in apps (apps relay the tap to SpringBoard) |
+| Status Bar | Tap, Double Tap, Hold | Home Screen, Lock Screen and in apps (apps relay the tap to SpringBoard). Hold fires after 0.5 s; the tap iOS reports when you let go is then ignored. |
 | Home Screen Icons | Flick Up, Down, Left, Right | A quick flick that starts on an app or folder icon on the Home Screen or in the Dock. Flick Left / Right take over page swipes that start on an icon, Flick Down takes over the pull for Search. Widgets, the App Library and jiggle mode are left alone. |
 | Motion | Shake Device | Uses iOS's own shake detection (the one behind Shake to Undo): no sensor runs for Triggr. Works while unlocked and awake. |
 | Charger & Headphones | Charger, Headphones connected/disconnected | Observed only while assigned |
@@ -134,6 +134,8 @@ as a fallback, so it doesn't depend on a passcode being set.
 
 - **System:** Go to Home Screen, App Switcher, Last App, Quit Current App, Control
   Center, Notification Center, Spotlight, Reachability, Siri, Take Screenshot,
+  Screen Recording (start / stop, like Control Center's button), Close Background Apps
+  (clears the App Switcher except the app you're in and the one playing audio),
   Vibrate, and Do Nothing (takes a trigger away from iOS without running anything).
 - **Power:** Sleep (a lock button press: the screen turns off and the phone
   locks, as the button does), Lock Device (locks but leaves the screen on), Respring,
@@ -145,7 +147,9 @@ as a fallback, so it doesn't depend on a passcode being set.
   Mode, Cellular Data, Do Not Disturb, Low Power Mode, Rotation Lock, Mute, Dark
   Mode, Night Shift, Auto-Brightness, Keep Screen Awake (until the next respring),
   Location Services.
-- **Media:** Play/Pause, Next, Previous, Volume Up, Volume Down.
+- **Media:** Play/Pause, Next, Previous, Volume Up, Volume Down, AirPlay Picker (the system
+  AirPlay menu), Play on iPhone, and AirPlay To… (a speaker or TV picked from the ones on
+  your network, or typed; Settings asks SpringBoard to find them).
 - **Levels:** Brightness %, Media Volume %, Ringer Volume %.
 - **Open:** an app, a Settings page, a Shortcut, a URL.
 - **Text & Commands:** Show Message, Speak Text, Run Command
