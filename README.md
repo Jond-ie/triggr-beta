@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-**Triggr** is an Activator-lite for **rootless Dopamine on iOS 15–16**. Assign
+**Triggr** is an Activator-lite for **rootless Dopamine on iOS 15–17**. Assign
 actions to the Home, lock and volume buttons, Touch ID, the mute switch, status bar
 taps, Home Screen icon flicks and shaking, or to events like plugging in a charger,
 joining a Wi-Fi network, a battery level or a time of day. It's laid out like
@@ -39,7 +39,8 @@ not by building the source: the repo always has the current build.
 | Device | Status |
 |---|---|
 | **A11 and older (arm64) with Touch ID**, iOS 15–16 | Tested on iPhone 8 Plus (iOS 16.7) and iPhone 7 (iOS 15.8.6) |
-| **A12 and newer** (iPhone XS / XR and later, all Face ID devices) | Included in the John's Repo build since 1.0.0~beta6 (arm64e), not confirmed on a device yet. If it lands you in safe mode, open Sileo and uninstall Triggr, then please [report it](../../issues/new/choose). |
+| **A12 and newer** (iPhone XS / XR and later), iOS 17 | **Tested** on an iPhone SE (2nd gen, A13, arm64e) with iOS 17.5.1 since 1.0.2: volume, Home and lock triggers, status bar tap and hold, icon flicks and the actions. If anything lands you in safe mode, open Sileo and uninstall Triggr, then please [report it](../../issues/new/choose). |
+| **Face ID devices** | Supported (Side Button instead of Home / Touch ID triggers), not confirmed on a Face ID device yet. |
 
 With **Options → Replace Button Actions** on (the default), an assigned button
 press runs instead of the button's own action, like Activator; unassigned presses
@@ -255,8 +256,11 @@ never with a synchronous LaunchServices call on the main thread.
 
 ### Notes and limits
 
-- Verified on an iPhone 8 Plus (A11, arm64), iOS 16.7 and an iPhone 7 (A10), iOS
-  15.8.6, both Dopamine. A12+ (arm64e) and Face ID devices are untested so far.
+- Verified on an iPhone 8 Plus (A11, arm64), iOS 16.7, an iPhone 7 (A10), iOS
+  15.8.6, and an iPhone SE (2nd gen, A13, arm64e), iOS 17.5.1, all Dopamine.
+  Face ID devices are untested so far.
+- iOS 17 changed the status bar, the App Switcher and the flashlight controller;
+  1.0.2 handles all three (Status Bar Hold, Close Background Apps, Flashlight).
 - **Untested:**
   - Volume Up then Down / Down then Up with the real buttons (the press logic is
     verified through code)

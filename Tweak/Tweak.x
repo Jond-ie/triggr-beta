@@ -318,6 +318,20 @@ typedef struct {
 
 static BOOL TGSwitchFor(NSString *name, TGSwitch *out) {
     if ([name isEqualToString:@"flashlight"]) {
+        // Control Center's own flashlight controller (iOS 17 doesn't let
+        // SpringBoard drive the torch through AVCaptureDevice).
+        id flashlight = TGShared("SBUIFlashlightController");
+        if ([flashlight respondsToSelector:@selector(setLevel:)] && [flashlight respondsToSelector:@selector(level)]) {
+            // Key-value access converts the level's number type (it isn't a float on iOS 17).
+            out->get = ^BOOL { return [[flashlight valueForKey:@"level"] doubleValue] > 0; };
+            out->set = ^(BOOL on) {
+                // What Control Center's button does: warm up, then set the level.
+                if (on && [flashlight respondsToSelector:@selector(warmUp)]) ((void (*)(id, SEL))objc_msgSend)(flashlight, @selector(warmUp));
+                [flashlight setValue:@(on ? 1.0 : 0.0) forKey:@"level"];
+                if (!on && [flashlight respondsToSelector:@selector(coolDown)]) ((void (*)(id, SEL))objc_msgSend)(flashlight, @selector(coolDown));
+            };
+            return YES;
+        }
         AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
         if (!device.hasTorch) return NO;
         out->get = ^BOOL { return device.torchMode == AVCaptureTorchModeOn; };
@@ -593,7 +607,8 @@ static BOOL TGScreenRecord(BOOL dry) {
 // Close Background Apps: every app in the App Switcher except the one in use
 // and the one playing audio, removed the way swiping its card up does.
 static BOOL TGCloseBackgroundApps(BOOL dry) {
-    id switcher = TGShared("SBMainSwitcherViewController");
+    // iOS 17 moved the switcher's model to SBMainSwitcherControllerCoordinator (same methods).
+    id switcher = TGShared("SBMainSwitcherControllerCoordinator") ?: TGShared("SBMainSwitcherViewController");
     SEL remove = @selector(_deleteAppLayoutsMatchingBundleIdentifier:);
     if (![switcher respondsToSelector:remove] || ![switcher respondsToSelector:@selector(recentAppLayouts)]) return NO;
     if (dry) return YES;
@@ -1611,8 +1626,10 @@ static void TGStatusBarTapped(void) {
 
 // Every status bar SpringBoard draws (Home Screen, Lock Screen, and the ones
 // over apps, which live in the switcher's window) gets one hold recognizer.
+// UIStatusBar_Base covers iOS 15/16's UIStatusBar_Modern and iOS 17's
+// STUIStatusBar_Wrapper.
 static const void *TGHoldRecognizerKey = &TGHoldRecognizerKey;
-%hook UIStatusBar_Modern
+%hook UIStatusBar_Base
 - (void)didMoveToWindow {
     %orig;
     UIView *bar = (UIView *)self;
