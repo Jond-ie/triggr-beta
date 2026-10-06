@@ -2,6 +2,10 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
+> **This repo is for Triggr beta builds and beta feedback.** The current release's
+> source, documentation and issues are in **[Jond-ie/triggr](https://github.com/Jond-ie/triggr)**.
+> Install Triggr from [John's Repo](https://jond-ie.github.io/repo/).
+
 **Triggr** is an Activator-lite for **rootless Dopamine on iOS 15–17**. Assign
 actions to the Home, lock and volume buttons, Touch ID, the mute switch, status bar
 taps, Home Screen icon flicks and shaking, or to events like plugging in a charger,
