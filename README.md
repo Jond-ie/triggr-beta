@@ -39,24 +39,23 @@ A13 Face ID (iOS 18.6.2).
 **RootHide:** [Triggr 1.5 RootHide](https://github.com/Jond-ie/triggr-beta/releases/tag/v1.5.0-roothide)
 (pre-release, untested on a RootHide device; feedback welcome).
 
-## Triggr 2.0 beta — coming soon
+## Triggr 2.0 beta
 
-2.0 makes Triggr smarter without making it heavier: every new feature costs nothing until you use it.
+**[Triggr 2.0 Beta 1](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta1)** is out (also on the
+Sileo repo). Every new feature costs nothing until you use it.
 
-Planned:
-- **Conditions ("only if"):** run an assignment only at certain times, on a Wi-Fi network, with a Bluetooth device
-  or headphones connected, while charging, locked or unlocked, with music playing, in your pocket.
-- **If / Else steps** in sequences, plus wait-for-event and repeat.
-- **Bottom swipe zones:** swipe up from the bottom-left, center or right.
-- **Edge swipes up / down** along the side of the screen.
-- **HTTP request** and **Home Assistant** actions (webhooks, smart home), and a **toast** action.
-- **Missed / declined call** trigger, done properly.
-- A tested **RootHide** build, and performance numbers (CPU, wakeups, memory) with every release.
+- **Only If:** conditions on any assignment (Wi-Fi network, charging, battery, time range, locked, and more), plus
+  "still true after N seconds".
+- **If / Otherwise steps** inside a sequence.
+- **Multi-Finger Gestures** inside any app: two- and three-finger taps and swipes, pinch in / out.
+- **Swipe Up from Bottom** left / middle / right.
+- **Action Button** (iPhone 15 Pro and newer): experimental, untested on hardware. Reports wanted.
+- **New actions:** Grayscale, Smart Invert, Classic Invert and Zoom switches; Speak Time / Battery / Clipboard,
+  Clear Clipboard; Show Text.
+- **libtriggr:** other tweaks can add their own triggers, actions and a "Configure via Triggr" button.
 
-Not planned on purpose: an always-on web server, background MQTT listeners or a bundled script interpreter. They
-cost battery and memory even when idle.
-
-Want to test the 2.0 betas? Watch this repo (Releases only), and tell me your device and iOS version in an issue.
+From 2.0, Triggr is closed source; the 1.x source stays in [Jond-ie/triggr](https://github.com/Jond-ie/triggr).
+Not planned on purpose: an always-on web server, background listeners or a bundled script interpreter.
 
 ## Bugs and feature requests
 
