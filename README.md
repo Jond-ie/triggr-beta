@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Release](https://img.shields.io/badge/release-1.5.0-informational)
-[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%202-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta2)
+[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%203-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta3)
 
 > **This repo is for Triggr beta builds and beta feedback.** The current release's source, documentation and
 > issues live in **[Jond-ie/triggr](https://github.com/Jond-ie/triggr)**. Install Triggr from
@@ -36,13 +36,12 @@ New in 1.5:
 Tested on A10 (iOS 15.8.6), A11 (iOS 16.7), A13 Face ID (iOS 16.2), A13 Touch ID (iOS 17.5.1) and
 A13 Face ID (iOS 18.6.2).
 
-**RootHide:** [Triggr 2.0 Beta 2 RootHide](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta2-roothide)
-(latest) and [Triggr 1.5 RootHide](https://github.com/Jond-ie/triggr-beta/releases/tag/v1.5.0-roothide). Both are pre-releases,
-untested on a RootHide device; feedback welcome.
+**RootHide:** every release now comes with a RootHide build in the same GitHub release (the `_roothide_` .deb),
+starting with [2.0 Beta 3](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta3). Untested on a RootHide device; feedback welcome.
 
 ## Triggr 2.0 beta
 
-**[Triggr 2.0 Beta 2](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta2)** is out (also on the
+**[Triggr 2.0 Beta 3](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta3)** is out (also on the
 Sileo repo). Every new feature costs nothing until you use it.
 
 <p>
@@ -53,6 +52,8 @@ Sileo repo). Every new feature costs nothing until you use it.
   <img src="screenshots/16-libtriggr.png" alt="Action categories, including BegoneCIA through libtriggr" width="200">
 </p>
 
+- **Fixed in Beta 3:** scheduled times run every day again (they could skip days while the phone slept), and
+  multi-finger gestures no longer fire while typing fast.
 - **New in Beta 2:** Snapper 3 and CopyLog actions (shown only while those tweaks are installed), contributed by
   [@qnblackcat](https://github.com/qnblackcat).
 - **Only If:** conditions on any assignment (Wi-Fi network, charging, battery, time range, locked, and more), plus
