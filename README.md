@@ -36,8 +36,9 @@ New in 1.5:
 Tested on A10 (iOS 15.8.6), A11 (iOS 16.7), A13 Face ID (iOS 16.2), A13 Touch ID (iOS 17.5.1) and
 A13 Face ID (iOS 18.6.2).
 
-**RootHide:** [Triggr 1.5 RootHide](https://github.com/Jond-ie/triggr-beta/releases/tag/v1.5.0-roothide)
-(pre-release, untested on a RootHide device; feedback welcome).
+**RootHide:** [Triggr 2.0 Beta 2 RootHide](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta2-roothide)
+(latest) and [Triggr 1.5 RootHide](https://github.com/Jond-ie/triggr-beta/releases/tag/v1.5.0-roothide). Both are pre-releases,
+untested on a RootHide device; feedback welcome.
 
 ## Triggr 2.0 beta
 
