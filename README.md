@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Release](https://img.shields.io/badge/release-1.5.0-informational)
-![Next](https://img.shields.io/badge/next-2.0%20beta%20coming%20soon-orange)
+[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%201-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta1)
 
 > **This repo is for Triggr beta builds and beta feedback.** The current release's source, documentation and
 > issues live in **[Jond-ie/triggr](https://github.com/Jond-ie/triggr)**. Install Triggr from
@@ -44,6 +44,14 @@ A13 Face ID (iOS 18.6.2).
 **[Triggr 2.0 Beta 1](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta1)** is out (also on the
 Sileo repo). Every new feature costs nothing until you use it.
 
+<p>
+  <img src="screenshots/12-ifelse.png" alt="If / Otherwise steps in a sequence" width="200">
+  <img src="screenshots/13-steps.png" alt="Steps editor with If, Otherwise and End If" width="200">
+  <img src="screenshots/14-onlyif.png" alt="Only If conditions" width="200">
+  <img src="screenshots/15-actionbutton.png" alt="Action Button: Press, Double Press, Hold" width="200">
+  <img src="screenshots/16-libtriggr.png" alt="Action categories, including BegoneCIA through libtriggr" width="200">
+</p>
+
 - **Only If:** conditions on any assignment (Wi-Fi network, charging, battery, time range, locked, and more), plus
   "still true after N seconds".
 - **If / Otherwise steps** inside a sequence.
@@ -52,7 +60,8 @@ Sileo repo). Every new feature costs nothing until you use it.
 - **Action Button** (iPhone 15 Pro and newer): experimental, untested on hardware. Reports wanted.
 - **New actions:** Grayscale, Smart Invert, Classic Invert and Zoom switches; Speak Time / Battery / Clipboard,
   Clear Clipboard; Show Text.
-- **libtriggr:** other tweaks can add their own triggers, actions and a "Configure via Triggr" button.
+- **[libtriggr](https://github.com/Jond-ie/libtriggr)** (MIT): other tweaks can add their own triggers, actions and a
+  "Configure via Triggr" button. First user: **BegoneCIA 1.1.0** (On / Off / Toggle as Triggr actions).
 
 From 2.0, Triggr is closed source; the 1.x source stays in [Jond-ie/triggr](https://github.com/Jond-ie/triggr).
 Not planned on purpose: an always-on web server, background listeners or a bundled script interpreter.
@@ -69,4 +78,4 @@ If anything ever puts you in safe mode, open Sileo (it still works there) and un
 
 ## License and credits
 
-GPL-3.0. Original work by **John d_ie**, inspired by Activator (Ryan Petrich). App pickers by AltList (opa334).
+Source in this repo (older betas): GPL-3.0. Triggr 2.0+ is closed source; libtriggr is MIT. Original work by **John d_ie**, inspired by Activator (Ryan Petrich). App pickers by AltList (opa334).
