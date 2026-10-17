@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Release](https://img.shields.io/badge/release-1.5.0-informational)
-[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%201-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta1)
+[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%202-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta2)
 
 > **This repo is for Triggr beta builds and beta feedback.** The current release's source, documentation and
 > issues live in **[Jond-ie/triggr](https://github.com/Jond-ie/triggr)**. Install Triggr from
@@ -41,7 +41,7 @@ A13 Face ID (iOS 18.6.2).
 
 ## Triggr 2.0 beta
 
-**[Triggr 2.0 Beta 1](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta1)** is out (also on the
+**[Triggr 2.0 Beta 2](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta2)** is out (also on the
 Sileo repo). Every new feature costs nothing until you use it.
 
 <p>
@@ -52,6 +52,8 @@ Sileo repo). Every new feature costs nothing until you use it.
   <img src="screenshots/16-libtriggr.png" alt="Action categories, including BegoneCIA through libtriggr" width="200">
 </p>
 
+- **New in Beta 2:** Snapper 3 and CopyLog actions (shown only while those tweaks are installed), contributed by
+  [@qnblackcat](https://github.com/qnblackcat).
 - **Only If:** conditions on any assignment (Wi-Fi network, charging, battery, time range, locked, and more), plus
   "still true after N seconds".
 - **If / Otherwise steps** inside a sequence.
