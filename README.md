@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Release](https://img.shields.io/badge/release-1.5.0-informational)
-[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%205-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta5)
+[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%206-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta6)
 
 > **This repo is for Triggr beta builds and beta feedback.** The current release's source, documentation and
 > issues live in **[Jond-ie/triggr](https://github.com/Jond-ie/triggr)**. Install Triggr from
@@ -41,7 +41,7 @@ starting with [2.0 Beta 3](https://github.com/Jond-ie/triggr-beta/releases/tag/v
 
 ## Triggr 2.0 beta
 
-**[Triggr 2.0 Beta 5](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta5)** is out (also on the
+**[Triggr 2.0 Beta 6](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta6)** is out (also on the
 Sileo repo). Every new feature costs nothing until you use it.
 
 <p>
@@ -52,6 +52,8 @@ Sileo repo). Every new feature costs nothing until you use it.
   <img src="screenshots/16-libtriggr.png" alt="Action categories, including BegoneCIA through libtriggr" width="200">
 </p>
 
+- **Fixed in Beta 6:** with an Action Button Press, Double Press or Hold assigned, the side button (Lock) could stop working.
+  Thanks to the Reddit user who reported it.
 - **New in Beta 5:** slide up or down along the left or right screen edge as a trigger (a quick, straight stroke from the edge; slow
   drags don't count). Thanks to nbaib for the idea.
 - **Fixed in Beta 5:** iOS 15 on A12 and newer (iPhone XS, XR, 11 and later) should work now. Triggr used to crash or freeze SpringBoard
@@ -67,7 +69,7 @@ Sileo repo). Every new feature costs nothing until you use it.
 - **If / Otherwise steps** inside a sequence.
 - **Multi-Finger Gestures** inside any app: two- and three-finger taps and swipes, pinch in / out.
 - **Swipe Up from Bottom** left / middle / right.
-- **Action Button** (iPhone 15 Pro and newer): Press is confirmed on an iPhone 15 Pro Max (iOS 17.3); Double Press and Hold are untested. Reports wanted.
+- **Action Button** (iPhone 15 Pro and newer): Press, Double Press and Hold are confirmed on an iPhone 15 Pro Max (iOS 17.3). Reports from other models wanted.
 - **New actions:** Grayscale, Smart Invert, Classic Invert and Zoom switches; Speak Time / Battery / Clipboard,
   Clear Clipboard; Show Text.
 - **[libtriggr](https://github.com/Jond-ie/libtriggr)** (MIT): other tweaks can add their own triggers, actions and a
