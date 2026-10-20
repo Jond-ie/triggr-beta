@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Release](https://img.shields.io/badge/release-1.5.0-informational)
-[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%206-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta6)
+[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%207-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta7)
 
 > **This repo is for Triggr beta builds and beta feedback.** The current release's source, documentation and
 > issues live in **[Jond-ie/triggr](https://github.com/Jond-ie/triggr)**. Install Triggr from
@@ -41,7 +41,7 @@ starting with [2.0 Beta 3](https://github.com/Jond-ie/triggr-beta/releases/tag/v
 
 ## Triggr 2.0 beta
 
-**[Triggr 2.0 Beta 6](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta6)** is out (also on the
+**[Triggr 2.0 Beta 7](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta7)** is out (also on the
 Sileo repo). Every new feature costs nothing until you use it.
 
 <p>
@@ -52,6 +52,10 @@ Sileo repo). Every new feature costs nothing until you use it.
   <img src="screenshots/16-libtriggr.png" alt="Action categories, including BegoneCIA through libtriggr" width="200">
 </p>
 
+- **New in Beta 7:** haptic feedback for actions (Options → Haptic Feedback, off by default).
+- **Fixed in Beta 7:** a swipe up from the bottom corners no longer scrolls the page behind it (the zone takes the touch from the app now;
+  real-finger testing welcome). With only Snapper 2 installed, the Snapper 3 actions are hidden: they did nothing. Thanks to the Reddit user
+  on an iPhone 13 mini for the feedback.
 - **Fixed in Beta 6:** with an Action Button Press, Double Press or Hold assigned, the side button (Lock) could stop working.
   Thanks to the Reddit user who reported it.
 - **New in Beta 5:** slide up or down along the left or right screen edge as a trigger (a quick, straight stroke from the edge; slow
