@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Release](https://img.shields.io/badge/release-1.5.0-informational)
-[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%203-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta3)
+[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%204-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta4)
 
 > **This repo is for Triggr beta builds and beta feedback.** The current release's source, documentation and
 > issues live in **[Jond-ie/triggr](https://github.com/Jond-ie/triggr)**. Install Triggr from
@@ -41,7 +41,7 @@ starting with [2.0 Beta 3](https://github.com/Jond-ie/triggr-beta/releases/tag/v
 
 ## Triggr 2.0 beta
 
-**[Triggr 2.0 Beta 3](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta3)** is out (also on the
+**[Triggr 2.0 Beta 4](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta4)** is out (also on the
 Sileo repo). Every new feature costs nothing until you use it.
 
 <p>
@@ -52,6 +52,8 @@ Sileo repo). Every new feature costs nothing until you use it.
   <img src="screenshots/16-libtriggr.png" alt="Action categories, including BegoneCIA through libtriggr" width="200">
 </p>
 
+- **Fixed in Beta 4:** Mute (Toggle, On, Off) and Volume Up / Down work on iOS 17 and newer again; they did nothing
+  there. Thanks to cuucondiep for the report. Tested on iOS 17.5.1.
 - **Fixed in Beta 3:** scheduled times run every day again (they could skip days while the phone slept), and
   multi-finger gestures no longer fire while typing fast.
 - **New in Beta 2:** Snapper 3 and CopyLog actions (shown only while those tweaks are installed), contributed by
