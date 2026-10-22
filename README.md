@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Release](https://img.shields.io/badge/release-1.5.0-informational)
-[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%207.1-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta7.1)
+[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%208-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta8)
 
 > **This repo is for Triggr beta builds and beta feedback.** The current release's source, documentation and
 > issues live in **[Jond-ie/triggr](https://github.com/Jond-ie/triggr)**. Install Triggr from
@@ -41,7 +41,7 @@ starting with [2.0 Beta 3](https://github.com/Jond-ie/triggr-beta/releases/tag/v
 
 ## Triggr 2.0 beta
 
-**[Triggr 2.0 Beta 7.1](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta7.1)** is out (also on the
+**[Triggr 2.0 Beta 8](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta8)** is out (also on the
 Sileo repo). Every new feature costs nothing until you use it.
 
 <p>
@@ -52,6 +52,11 @@ Sileo repo). Every new feature costs nothing until you use it.
   <img src="screenshots/16-libtriggr.png" alt="Action categories, including BegoneCIA through libtriggr" width="200">
 </p>
 
+- **New in Beta 8:** Shortcuts run in the background like Back Tap (no Shortcuts app; Options to turn off) and can be picked from a
+  list; Tweak Actions run other tweaks' old Activator actions without Activator (for Snapper 2); Press Volume Up / Down acts like the real
+  button (volume bar, volume mixers); Soft haptic feedback. Thanks to nbaib, alexp4re and the Reddit testers.
+- **Fixed in Beta 8:** SpringBoard going into Safe Mode with an Action Button Press assigned (Beta 6–7.1); the Mute Switch trigger on
+  iOS 17 and 18; Proximity on iOS 15; Spotlight on iOS 18.
 - **Fixed in Beta 7.1:** opening Options in Beta 7 crashed Settings.
 - **New in Beta 7:** haptic feedback for actions (Options → Haptic Feedback, off by default).
 - **Fixed in Beta 7:** a swipe up from the bottom corners no longer scrolls the page behind it (the zone takes the touch from the app now;
