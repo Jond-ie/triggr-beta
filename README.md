@@ -1,14 +1,13 @@
 # Triggr — beta builds and feedback
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-![Release](https://img.shields.io/badge/release-1.5.0-informational)
-[![Beta](https://img.shields.io/badge/beta-2.0.0%20beta%209-orange)](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta9)
+![Release](https://img.shields.io/badge/release-2.0.0-brightgreen)
 
-> **This repo is for Triggr beta builds and beta feedback.** The current release's source, documentation and
-> issues live in **[Jond-ie/triggr](https://github.com/Jond-ie/triggr)**. Install Triggr from
-> **[John's Repo](https://jond-ie.github.io/repo/)**. The source folders here are from older betas.
+> **Triggr 2.0 is out of beta.** Install it from the **[pwnapple repo](https://jond-ie.github.io/repo/)** (Rootless and
+> RootHide, iOS 15–27). Bug reports go to **[Jond-ie/triggr](https://github.com/Jond-ie/triggr/issues)**.
+> This repo keeps the 2.0 beta builds and notes; the next beta will show up here too. The source folders here are from older betas.
 
-**Triggr** is an Activator-style trigger tool for rootless jailbreaks (Dopamine) on **iOS 15–18**, arm64 and
+**Triggr** is an Activator-style trigger tool for Rootless and RootHide jailbreaks on **iOS 15–27**, arm64 and
 arm64e. Assign actions to buttons, screen edges, the status bar, Home Screen gestures, sensors and events.
 
 The goal: **the lightest trigger tool there is.** The main library loads into SpringBoard only, and nothing runs
@@ -16,7 +15,13 @@ for a trigger you haven't assigned: no timers, no polling, no extra daemons.
 
 > AI assisted in development (Claude Code), all testing and debugging done by me on device.
 
-## Current release: 1.5
+## 2.0
+
+Out of beta on November 1, 2026. Only If and If / Otherwise, multi-finger gestures in apps, the Action Button,
+Shortcuts in the background, flashlight brightness, video and voice memo recording, iOS 27 and RootHide.
+[Full notes](https://jond-ie.github.io/repo/depictions/com.johndie.triggr.html).
+
+## 1.5
 
 <p>
   <img src="screenshots/8-triggers-1.5.png" alt="Trigger list in 1.5" width="200">
@@ -36,13 +41,13 @@ New in 1.5:
 Tested on A10 (iOS 15.8.6), A11 (iOS 16.7), A13 Face ID (iOS 16.2), A13 Touch ID (iOS 17.5.1) and
 A13 Face ID (iOS 18.6.2).
 
-**RootHide:** every release now comes with a RootHide build in the same GitHub release (the `_roothide_` .deb),
-starting with [2.0 Beta 3](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta3). Untested on a RootHide device; feedback welcome.
+**RootHide:** the betas came with a RootHide build in each GitHub release (the `_roothide_` .deb), starting with
+[2.0 Beta 3](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta3). From 2.0 the RootHide build is in the pwnapple repo.
 
-## Triggr 2.0 beta
+## Triggr 2.0 betas
 
-**[Triggr 2.0 Beta 9](https://github.com/Jond-ie/triggr-beta/releases/tag/v2.0.0-beta9)** is out (also on the
-Sileo repo). Every new feature costs nothing until you use it.
+What each beta changed, newest first. 2.0 itself adds flashlight brightness, video and voice memo recording, a
+simpler Settings page and iOS 27 support on top of Beta 9: see [the Triggr page](https://jond-ie.github.io/repo/depictions/com.johndie.triggr.html).
 
 <p>
   <img src="screenshots/12-ifelse.png" alt="If / Otherwise steps in a sequence" width="200">
@@ -102,4 +107,4 @@ If anything ever puts you in safe mode, open Sileo (it still works there) and un
 
 ## License and credits
 
-Source in this repo (older betas): GPL-3.0. Triggr 2.0+ is closed source; libtriggr is MIT. Original work by **John d_ie**, inspired by Activator (Ryan Petrich). App pickers by AltList (opa334).
+Source in this repo (older betas): GPL-3.0. Triggr 2.0+ is closed source; libtriggr is MIT. Original work by **Jond-ie**, inspired by Activator (Ryan Petrich). App pickers by AltList (opa334).
